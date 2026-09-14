@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noctis Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,900&display=swap" rel="stylesheet">
+</head>
+<body>
+<style>
+:root{
+  --paper:#FAFAFA; --card:#FFFFFF; --ink:#212121; --chrome:#FEF200; --hazard:#F03E24;
+  --signal:#50E661; --sky:#6BB1BD; --muted:#6B6B6B; --rule:#DCDCDC;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --switzer:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --micro:11px; --tracking-micro:.12em; --tracking-display:-.03em;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{color-scheme:light}
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+}
+img{display:block;max-width:100%}
+button,select,input,textarea{font-family:inherit;color:inherit}
+.cond{font-weight:900;text-transform:uppercase;font-stretch:condensed;letter-spacing:var(--tracking-display);line-height:.9}
+.sw{font-family:var(--switzer);font-weight:700}
+.micro{font-size:var(--micro);letter-spacing:var(--tracking-micro);text-transform:uppercase;font-weight:600}
+.mono-num{font-variant-numeric:tabular-nums}
+a{color:inherit}
+
+/* ===== APP SHELL ===== */
+#app{max-width:1240px;margin:0 auto;padding:20px 24px 80px}
+@media (max-width:720px){ #app{padding:14px 14px 60px} }
+
+/* ===== PORTADA =====
+   Medidas tomadas del diseño de Canva (3000×358). Las unidades cqw escalan
+   todo en proporción al ancho de la portada. */
+.cover{margin-bottom:10px}
+.cover-art{
+  position:relative;container-type:inline-size;aspect-ratio:3000/358;
+  background:#7EE78A;color:var(--ink);overflow:hidden;
+}
+.cover-dog{position:absolute;left:0;bottom:0;width:18.667cqw;height:auto;display:block}
+.cover-title{position:absolute;left:17.066cqw;top:3.22cqw;margin:0;font-family:"Archivo",var(--sans);font-stretch:75%;font-size:5.184cqw;font-weight:900;line-height:.8;letter-spacing:-.006em;white-space:nowrap}
+.cover-sub{position:absolute;left:17.196cqw;top:7.492cqw;font-size:2cqw;font-weight:400;line-height:1;white-space:nowrap}
+.cover-logo{position:absolute;right:3.833cqw;top:4.2cqw;width:12.467cqw}
+.cover-logo svg{display:block;width:100%;height:auto}
+@media (max-width:640px){
+  .cover-art{aspect-ratio:auto;min-height:104px;padding:36px 14px 14px 132px}
+  .cover-dog{width:auto;height:92px}
+  .cover-title,.cover-sub{position:relative;left:auto;top:auto;display:block;white-space:normal}
+  .cover-title{font-size:28px;line-height:.9}
+  .cover-sub{font-size:13px;margin-top:5px}
+  .cover-logo{right:14px;top:12px;width:70px}
+}
+.cover-meta{display:flex;justify-content:flex-end;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.sync-chip{display:flex;align-items:center;gap:7px;font-size:var(--micro);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.sync-dot.-on{background:var(--signal)}
+.sync-dot.-local{background:var(--chrome)}
+
+/* ===== TABS ===== */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--ink);margin-bottom:28px;overflow-x:auto}
+.tab-btn{
+  appearance:none;border:none;background:none;cursor:pointer;
+  font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  padding:14px 18px 12px;border-bottom:4px solid transparent;color:var(--muted);white-space:nowrap;
+}
+.tab-btn:hover{color:var(--ink)}
+.tab-btn.-active{color:var(--ink);border-bottom-color:var(--signal)}
+.tab-btn:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+
+/* ===== SECTION HEADINGS ===== */
+.view-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.view-head h2{font-size:clamp(26px,4vw,40px)}
+.view-head .sub{color:var(--muted);font-size:15px;max-width:56ch;margin-top:6px}
+
+/* ===== KPI GRID ===== */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:var(--ink);border:2px solid var(--ink);margin-bottom:28px}
+.kpi{background:var(--card);padding:18px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.kpi.-accent{background:var(--signal)}
+.kpi.-warn{background:var(--hazard);color:var(--paper)}
+.kpi .num{font-family:var(--sans);font-weight:900;font-stretch:condensed;font-size:clamp(28px,3.4vw,44px);line-height:1}
+.kpi .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.kpi.-accent .lbl,.kpi.-warn .lbl{color:inherit;opacity:.82}
+@media (max-width:920px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:520px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ===== ESTADO GENERAL BANNER ===== */
+.status-banner{
+  display:flex;align-items:center;gap:14px;border:2px solid var(--ink);padding:16px 20px;margin-bottom:28px;background:var(--card);
+}
+.status-banner .dot{width:14px;height:14px;flex:none;background:var(--signal)}
+.status-banner.-warn .dot{background:var(--chrome)}
+.status-banner.-risk .dot{background:var(--hazard)}
+.status-banner .txt b{font-size:15px;text-transform:uppercase;letter-spacing:.02em}
+.status-banner .txt span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+
+/* ===== FASE PROGRESS ROW ===== */
+.fase-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px}
+@media (max-width:820px){.fase-row{grid-template-columns:repeat(2,1fr)}}
+.fase-card{border:2px solid var(--ink);padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--card)}
+.fase-card .flabel{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;line-height:1.25;min-height:2.4em}
+.fase-card .fsub{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.fase-bar{height:10px;background:var(--paper);border:1.5px solid var(--ink);position:relative;overflow:hidden}
+.fase-bar i{display:block;height:100%;background:var(--signal)}
+.fase-nums{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:600}
+.fase-nums b{color:var(--ink)}
+
+/* ===== OBJETIVO / PRIORIDADES BLOCK ===== */
+.strategy-block{border:2px solid var(--ink);margin-bottom:32px;background:var(--card)}
+.strategy-block .obj-head{padding:22px 24px;border-bottom:2px solid var(--ink);background:var(--chrome)}
+.strategy-block .obj-head .micro{color:var(--ink);opacity:.7}
+.strategy-block .obj-head p{font-size:17px;line-height:1.4;max-width:80ch;margin-top:8px;font-weight:500}
+.prio-list{display:grid;grid-template-columns:repeat(3,1fr)}
+@media (max-width:820px){.prio-list{grid-template-columns:1fr}}
+.prio-item{padding:20px 22px;border-right:2px solid var(--ink)}
+.prio-item:last-child{border-right:none}
+@media (max-width:820px){.prio-item{border-right:none;border-bottom:2px solid var(--ink)}.prio-item:last-child{border-bottom:none}}
+.prio-item .n{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.1em}
+.prio-item h4{font-size:16px;text-transform:uppercase;margin:6px 0 8px;letter-spacing:-.01em}
+.prio-item p{font-size:13.5px;line-height:1.5;color:var(--muted)}
+
+/* ===== FILTER BAR ===== */
+.filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px;padding:14px;border:2px solid var(--ink);background:var(--card)}
+.filter-bar .fgroup{display:flex;flex-direction:column;gap:4px}
+.filter-bar label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.filter-bar select{
+  border:2px solid var(--ink);background:var(--paper);padding:8px 30px 8px 10px;font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.03em;font-weight:600;appearance:none;cursor:pointer;min-width:150px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.filter-bar select:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.filter-clear{
+  margin-left:auto;background:none;border:2px solid transparent;text-decoration:underline;
+  font-size:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;cursor:pointer;padding:8px 4px;color:var(--muted);
+}
+.filter-clear:hover{color:var(--hazard)}
+.result-count{font-size:12px;color:var(--muted);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+
+/* ===== FASE GROUP HEADER (plan view) ===== */
+.group-head{
+  display:flex;align-items:center;gap:12px;margin:30px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--ink);
+}
+.group-head:first-child{margin-top:0}
+.group-head h3{font-size:19px;text-transform:uppercase;letter-spacing:-.01em}
+.group-head .count{font-size:12px;color:var(--muted);font-weight:700}
+.group-head .swatch{width:14px;height:14px;flex:none;background:var(--signal)}
+
+/* ===== TASK LIST ===== */
+.task-list{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
+.task-row{
+  display:grid;grid-template-columns:.8fr .95fr 1.9fr 96px 112px 150px 1.25fr 34px;gap:14px;align-items:center;
+  padding:13px 4px;border-bottom:1.5px solid var(--rule);
+}
+.task-row:hover{background:rgba(33,33,33,.03)}
+.task-row.-editable{cursor:pointer}
+.task-row.-overdue{background:rgba(240,62,36,.06)}
+@media (max-width:980px){
+  .task-row{grid-template-columns:1fr;gap:8px;padding:14px 4px}
+  .task-row .col-dates,.task-row .col-resp{justify-self:start}
+}
+.tk-tema{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:3px}
+.tk-tarea{font-size:14.5px;line-height:1.35;font-weight:500}
+.tk-flags{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle}
+.flag{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1.5px solid var(--hazard);color:var(--hazard)}
+.resp-chip{
+  width:30px;height:30px;border:2px solid var(--ink);border-radius:50%;display:grid;place-items:center;
+  font-size:10.5px;font-weight:800;background:var(--card);flex:none;
+}
+.col-resp{display:flex;align-items:center;gap:8px}
+.col-resp .rname{font-size:11.5px;color:var(--muted);font-weight:600}
+.col-dates{font-size:11.5px;color:var(--muted);line-height:1.5;font-weight:500}
+.tk-resp{font-size:13px;font-weight:600}
+.tk-obs{font-size:12px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.col-dates b{color:var(--ink);font-weight:700}
+.urg-dot{width:9px;height:9px;flex:none;background:var(--muted);margin-right:6px;display:inline-block}
+.urg-Alta{background:var(--hazard)}
+.urg-Media{background:var(--chrome)}
+.urg-Baja{background:var(--rule)}
+.status-select{
+  border:2px solid var(--ink);padding:7px 24px 7px 10px;font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.03em;appearance:none;cursor:pointer;width:100%;
+  background-repeat:no-repeat;background-position:right 8px center;background-size:9px 6px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
+}
+.st-Por-hacer{background:var(--paper);color:var(--ink)}
+.st-En-proceso{background:var(--sky);color:var(--ink)}
+.st-En-revisión{background:var(--chrome);color:var(--ink)}
+.st-Completado{background:var(--signal);color:var(--ink)}
+.st-Bloqueado{background:var(--hazard);color:var(--paper)}
+.obs-btn{
+  width:30px;height:30px;border:2px solid var(--ink);background:var(--card);cursor:pointer;
+  display:grid;place-items:center;font-size:13px;font-weight:700;flex:none;
+}
+.obs-btn:hover{background:var(--ink);color:var(--paper)}
+.obs-btn[disabled]{opacity:.25;cursor:default}
+.obs-btn[disabled]:hover{background:var(--card);color:var(--ink)}
+.empty-note{padding:36px 8px;text-align:center;color:var(--muted);font-size:14px;border-bottom:1.5px solid var(--rule)}
+
+/* ===== TIMELINE ===== */
+.tl-month{margin-bottom:8px}
+.tl-month-head{
+  position:sticky;top:0;background:var(--paper);z-index:1;
+  font-size:13px;text-transform:uppercase;letter-spacing:.1em;font-weight:800;
+  padding:10px 0;border-bottom:2px solid var(--ink);margin-bottom:2px;
+}
+.tl-item{display:flex;gap:16px;padding:12px 0;border-bottom:1.5px solid var(--rule)}
+.tl-date{width:66px;flex:none;font-size:12px;font-weight:800;color:var(--muted);padding-top:2px}
+.tl-node{width:12px;flex:none;display:flex;justify-content:center;padding-top:5px}
+.tl-node i{width:12px;height:12px;background:var(--ink);display:block}
+.tl-node i.-done{background:var(--signal)}
+.tl-node i.-overdue{background:var(--hazard)}
+.tl-body{flex:1;min-width:0}
+.tl-body .tt{font-size:14.5px;font-weight:600;line-height:1.35}
+.tl-body .tm{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+/* ===== PENDIENTES ===== */
+.pend-section{margin-bottom:34px}
+.pend-section h3{font-size:18px;text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+.pend-section h3 .tag-count{background:var(--ink);color:var(--paper);font-size:12px;padding:2px 9px;font-weight:700}
+.pend-card{border:2px solid var(--ink);padding:14px 16px;margin-bottom:10px;background:var(--card);display:flex;gap:14px;align-items:flex-start}
+.pend-card.-hazard{border-color:var(--hazard)}
+.pend-card .body{flex:1;min-width:0}
+.pend-card .tt{font-size:14px;font-weight:600;line-height:1.35}
+.pend-card .mt{font-size:11.5px;color:var(--muted);margin-top:5px}
+.backlog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.backlog-item{border:1.5px dashed var(--ink);padding:12px 14px;font-size:13px;line-height:1.4}
+.backlog-item .bl-area{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:4px}
+.backlog-item .bl-fase{display:inline-block;margin-top:6px;font-size:10px;font-weight:700;border:1.5px solid var(--rule);padding:1px 6px;color:var(--muted)}
+
+/* ===== ENTREGABLES ===== */
+.deliv-grid{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
+.deliv-row{display:grid;grid-template-columns:26px 1.4fr 1.6fr 130px 120px;gap:14px;align-items:center;padding:13px 4px;border-bottom:1.5px solid var(--rule)}
+@media (max-width:900px){.deliv-row{grid-template-columns:1fr}}
+.deliv-icon{width:26px;height:26px;background:var(--ink);color:var(--chrome);display:grid;place-items:center;font-size:12px;font-weight:800}
+.deliv-name{font-size:14px;font-weight:600;line-height:1.35}
+.deliv-task{font-size:12.5px;color:var(--muted);line-height:1.4}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border:1.5px solid var(--ink);padding:4px 9px;width:fit-content}
+
+/* ===== NOTAS ===== */
+.notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+@media (max-width:900px){.notes-grid{grid-template-columns:1fr}}
+.note-compose{border:2px solid var(--ink);padding:16px;background:var(--card);margin-bottom:18px}
+.note-compose textarea{
+  width:100%;border:2px solid var(--ink);padding:10px;font-size:14px;font-family:inherit;resize:vertical;min-height:70px;background:var(--paper);
+}
+.note-compose .row{display:flex;gap:10px;margin-top:10px;align-items:center}
+.note-compose select{border:2px solid var(--ink);padding:8px;font-size:12px;text-transform:uppercase;font-weight:700;background:var(--paper)}
+.btn-primary{
+  background:var(--ink);color:var(--chrome);border:2px solid var(--ink);padding:10px 20px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;cursor:pointer;
+}
+.btn-primary:hover{background:var(--hazard);border-color:var(--hazard);color:var(--paper)}
+.btn-primary:disabled{opacity:.4;cursor:default;background:var(--muted);border-color:var(--muted)}
+.note-item{border-left:4px solid var(--ink);padding:10px 0 10px 14px;margin-bottom:14px}
+.note-item .who{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.note-item .when{font-weight:500;text-transform:none;letter-spacing:0}
+.note-item p{font-size:14px;line-height:1.5;margin-top:4px}
+
+/* ===== MODAL ===== */
+.modal-backdrop{position:fixed;inset:0;background:rgba(33,33,33,.82);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-backdrop[hidden]{display:none}
+.modal-box{background:var(--paper);border:2px solid var(--ink);max-width:480px;width:100%;padding:24px;max-height:80vh;overflow:auto}
+.modal-box h3{font-size:20px;text-transform:uppercase;margin-bottom:14px;padding-right:30px}
+.modal-box .mrow{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-top:1.5px solid var(--rule);font-size:13.5px}
+.modal-box .mrow:first-of-type{border-top:none}
+.modal-box .mrow .k{color:var(--muted);font-weight:600;flex:none;width:110px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding-top:2px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;line-height:1}
+.modal-wrap{position:relative}
+
+/* ===== FORM FIELDS (modal add-task / add-meeting) ===== */
+.field{margin-bottom:14px}
+.field label.flabel{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--muted);margin-bottom:6px}
+.field input[type="text"],.field input[type="url"],.field input[type="date"],.field input[type="email"],.field input[type="password"],.field select,.field textarea{
+  width:100%;border:2px solid var(--ink);padding:9px 10px;font-size:13.5px;background:var(--paper);font-family:inherit;
+}
+.field textarea{resize:vertical;min-height:64px}
+.-missing{border-color:var(--hazard)!important;box-shadow:0 0 0 1px var(--hazard)}
+.form-error{color:var(--hazard);font-size:12.5px;font-weight:700;margin-top:10px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.field-row{grid-template-columns:1fr}}
+.modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.modal-actions button{white-space:nowrap}
+.metric-table{overflow-x:auto;margin:0 0 26px}
+.metric-table table{width:100%;min-width:720px;border-collapse:collapse;font-size:13px;background:var(--card)}
+.metric-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--ink);padding:8px 10px}
+.metric-table td{border-bottom:1.5px solid var(--rule);padding:9px 10px;vertical-align:top;line-height:1.45}
+.btn-secondary{
+  background:var(--paper);color:var(--ink);border:2px solid var(--ink);padding:10px 20px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;cursor:pointer;
+}
+.btn-secondary:hover{background:var(--rule)}
+.btn-danger{
+  background:var(--paper);color:var(--hazard);border:2px solid var(--hazard);padding:10px 20px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;font-size:12.5px;cursor:pointer;
+}
+.btn-danger:hover{background:var(--hazard);color:var(--paper)}
+.btn-sm{padding:9px 14px;font-size:11px}
+.link-inline{display:flex;gap:8px;align-items:stretch}
+.link-inline input{flex:1}
+.view-head .actions{display:flex;gap:10px}
+a.deliv-link,a.entregable-link{color:var(--ink);text-decoration:underline;text-decoration-color:var(--signal);text-underline-offset:2px}
+a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-color:var(--hazard)}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.custom-tag{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1.5px solid var(--sky);color:var(--ink);background:var(--sky);margin-left:8px;vertical-align:middle}
+
+/* ===== REUNIONES ===== */
+.meeting-compose{border:2px solid var(--ink);padding:16px;background:var(--card);margin-bottom:24px}
+.meeting-item{border:2px solid var(--ink);padding:14px 16px;margin-bottom:10px;background:var(--card)}
+.meeting-item.-historical{border-style:dashed;background:transparent}
+.meeting-item .mhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.meeting-item .mdate{font-size:15px;font-weight:800}
+.meeting-item .mmeta{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.meeting-item .mbody{font-size:13.5px;line-height:1.5;margin-top:8px;color:var(--ink)}
+
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+::selection{background:var(--ink);color:var(--chrome)}
+
+.row-delete{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
+.row-delete:hover{color:var(--hazard)}
+.note-item,.meeting-item{position:relative}
+.note-item .row-delete,.meeting-item .row-delete{position:absolute;top:0;right:0}
+</style>
+
+<div id="app">
+  <header class="cover">
+    <div class="cover-art">
+      <img class="cover-dog" src="img/portada-perro.jpg" alt="" width="560" height="358">
+      <h1 class="cover-title">Plan de acción</h1>
+      <p class="cover-sub">Tablero de seguimiento de trabajo</p>
+      <div class="cover-logo" role="img" aria-label="Evelyna">
+        <svg viewBox="0 0 318 91" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+        <path d="M316.769 68.2337L316.666 68.1106L316.559 67.9723C315.871 66.9327 315.396 65.7675 315.16 64.5436C314.859 62.6921 314.726 60.8174 314.76 58.942V47.6259C314.76 41.6092 313.971 36.5559 312.418 32.6148C311.024 29.0837 306.893 24.7479 301.691 23.2924C296.29 21.7549 288.525 22.5493 283.646 24.0919C281.511 24.7549 279.513 25.7965 277.747 27.1669C276.015 28.4408 274.545 30.0364 273.417 31.8665C272.959 32.6682 272.59 33.5171 272.315 34.3983C271.979 35.4458 271.784 36.5333 271.736 37.6322C271.696 38.6162 271.821 39.6 272.105 40.5432C272.271 41.1156 272.509 41.6648 272.812 42.178C273.32 43.0438 274.009 43.7901 274.831 44.3664C276.048 45.1917 277.499 45.6016 278.967 45.5349C280.869 45.4904 282.676 44.6922 283.989 43.3158C284.337 42.9664 284.651 42.5855 284.927 42.178C285.798 40.8494 286.278 39.3025 286.311 37.7142C286.338 37.0869 286.288 36.4587 286.163 35.8435C286.163 35.7462 286.122 35.6437 286.101 35.5309L285.87 34.429C285.788 34.019 285.681 33.4758 285.64 33.2144V33.1837C285.566 32.6249 285.542 32.0606 285.568 31.4975C285.621 30.7472 285.824 30.0151 286.165 29.3444C286.506 28.6737 286.977 28.078 287.551 27.5923C288.423 26.7869 289.529 26.2821 290.708 26.1521H290.801H290.857H291.123H291.375C291.487 26.1521 291.6 26.1521 291.718 26.1521C293.133 26.1705 294.506 26.6331 295.644 27.4744H295.674C296.382 27.9958 296.976 28.6548 297.422 29.4117L297.473 29.4936C298.565 31.3284 299.293 34.8031 299.431 38.7853V41.6194H299.334C290.042 42.5266 272.125 50.004 272.433 60.4692C272.484 62.2374 272.991 65.5225 275.789 67.6443C277.916 69.2638 280.217 70.0684 283.477 70.3144C287.274 70.6689 291.103 70.1662 294.68 68.8435C294.945 68.7409 295.216 68.652 295.49 68.577C297.96 67.8371 300.622 68.0871 302.911 69.274H302.937H302.962C305.955 69.2996 310.183 69.3303 313.387 69.3252C316.175 69.3252 317.338 69.2791 317.784 69.2433L317.681 69.1612C317.348 68.8823 317.042 68.5716 316.769 68.2337ZM297.991 62.5961C297.415 63.2728 296.676 63.7906 295.844 64.1001C295.011 64.4097 294.113 64.5006 293.235 64.3642C292.589 64.2673 291.974 64.0245 291.436 63.6542C290.897 63.2839 290.451 62.7958 290.129 62.2271C289.237 60.787 288.786 58.6806 288.786 55.9849C288.725 54.0403 289.058 52.1034 289.765 50.291C290.458 48.7425 291.574 47.4208 292.984 46.4779C294.775 45.0239 297.011 44.2295 299.318 44.228H299.431V57.5993C299.431 59.7056 298.949 61.3866 297.991 62.5961Z" fill="currentColor"/>
+        <path d="M50.9939 51.1065L50.6813 51.5677C50.4661 51.8803 50.2456 52.2032 50.0149 52.5159C47.9607 55.3025 45.5307 57.7912 42.7939 59.9112C40.2095 61.9072 37.34 63.5035 34.2813 64.6467C31.1192 65.8152 27.962 65.9741 25.2867 65.9741C23.0471 65.9741 21.5148 65.4155 20.7358 64.3239C19.9568 63.2322 19.5777 61.1412 19.5777 58.056V38.1402H19.6955C21.3802 38.1339 23.0623 38.2728 24.7232 38.5553C26.0109 38.6886 27.2905 38.8905 28.5567 39.1601C30.9076 39.6632 33.1785 40.4857 35.3063 41.6047C36.0904 42.0468 36.85 42.5309 37.5818 43.0551V29.8428C36.8508 30.3682 36.0912 30.8524 35.3063 31.2932C33.1787 32.4128 30.9077 33.2353 28.5567 33.7378C25.6377 34.3204 22.6717 34.6361 19.6955 34.6808H19.5777V8.7687H19.6955C19.9159 8.7687 25.174 8.8456 26.4912 8.98398C29.336 9.26873 32.1222 9.97696 34.7578 11.0852C37.4285 12.2589 39.8902 13.8601 42.0456 15.8259C43.0373 16.5493 43.9805 17.3368 44.8694 18.1833C45.9969 19.1725 47.0067 20.0694 47.9139 20.9099V5.42725H0C0.4707 5.81054 0.887799 6.25523 1.24021 6.74948C1.97168 7.85632 2.47849 9.09616 2.73167 10.3985C3.06887 12.5199 3.21129 14.6677 3.15709 16.815V57.9176C3.21335 60.065 3.07091 62.213 2.73167 64.3341C2.4779 65.6354 1.97313 66.8748 1.24547 67.9831C0.888551 68.4753 0.469924 68.9196 0 69.3054H51.614V50.0251C51.4141 50.3941 51.204 50.758 50.9939 51.1065Z" fill="currentColor"/>
+        <path d="M89.1287 40.1438C90.5432 37.284 91.8345 34.8394 92.9672 32.8816C94.0922 30.9354 95.3473 29.0674 96.7238 27.2902C97.3542 26.5214 97.8873 25.8962 98.3434 25.3683C98.7704 24.872 99.2385 24.4126 99.7425 23.9948C100.115 23.6964 100.511 23.429 100.926 23.1953H86.648C87.5141 24.4612 87.9192 26.2703 87.8577 28.5766C87.8056 31.1289 87.4528 33.6662 86.8069 36.136C86.0672 38.8989 85.0774 41.5887 83.8497 44.172L81.4667 49.1125L81.4104 48.9997L81.3591 49.1074L74.5634 34.7574C73.9995 33.6409 73.5048 32.4907 73.0822 31.3134C72.7948 30.6259 72.5466 29.9226 72.339 29.2069C72.0398 28.2584 71.8675 27.2744 71.8265 26.2806C71.8121 25.6742 71.9518 25.0741 72.2324 24.5364C72.5129 23.9986 72.925 23.5407 73.4305 23.2056H50.2451C51.0793 24.0746 51.8388 25.0124 52.5156 26.0089C52.938 26.5605 53.3266 27.1373 53.679 27.7361C54.3196 28.8123 55.0831 30.2166 55.9492 31.9078L74.7221 70.3967L89.1287 40.1438Z" fill="currentColor"/>
+        <path d="M98.4974 54.4428C99.7697 58.2744 102.01 61.7124 105.002 64.4233C107.994 67.1341 111.636 69.0259 115.574 69.9152L115.707 69.9459L115.887 69.987C116.43 70.0946 117.009 70.1868 117.711 70.2688C118.029 70.3098 118.357 70.3303 118.675 70.3559C119.187 70.3918 119.602 70.4174 120.012 70.4226C120.084 70.4226 120.156 70.4226 120.222 70.4226C120.313 70.4276 120.403 70.4276 120.494 70.4226H120.561C126.429 70.3834 132.059 68.0941 136.289 64.0266C137.972 62.4213 139.408 60.577 140.553 58.553C140.63 58.43 140.692 58.3173 140.758 58.2046L140.886 57.9739C141.911 56.0366 142.663 53.967 143.121 51.8239H142.347C140.451 54.699 138.867 56.2929 136.71 57.4922C134.225 58.8069 131.443 59.4583 128.633 59.3833C118.834 59.3833 113.821 53.6945 113.734 42.4707V42.358H140.897C141.167 42.3576 141.434 42.2978 141.678 42.1826C141.923 42.0675 142.139 41.8999 142.311 41.6918C142.486 41.4799 142.612 41.2327 142.682 40.9673C142.752 40.7019 142.764 40.4246 142.716 40.1543C142.506 39.4316 142.255 38.6987 141.978 37.9915C140.32 33.7053 137.425 30.0092 133.66 27.3735C129.896 24.7378 125.432 23.2817 120.837 23.1904H120.653H120.458C107.646 23.1904 97.252 33.7941 97.252 46.827C97.2539 49.4161 97.6746 51.9879 98.4974 54.4428ZM113.647 39.2215C113.647 35.1215 114.313 31.9081 115.63 29.689C116.948 27.4698 118.854 26.3065 121.268 26.3065C122.593 26.2345 123.899 26.642 124.948 27.4545C125.844 28.213 126.485 29.4174 126.864 31.042L126.772 31.1189L126.875 31.0932C127.108 32.0748 127.116 33.0962 126.899 34.0815C126.682 35.0667 126.246 35.9902 125.622 36.783C124.998 37.5759 124.203 38.2176 123.297 38.6603C122.39 39.1029 121.395 39.335 120.386 39.3394H113.626L113.647 39.2215Z" fill="currentColor"/>
+        <path d="M146.898 6.49854C146.928 6.53954 146.964 6.5754 146.995 6.61128C147.052 6.67283 147.105 6.73787 147.154 6.80603C147.842 7.84328 148.318 9.007 148.553 10.2296C148.873 12.2218 149.009 14.2394 148.958 16.2566V19.6852V58.6353C149.009 60.6506 148.876 62.6664 148.558 64.6572C148.323 65.8602 147.858 67.0068 147.19 68.0346L147.159 68.0807C146.828 68.5456 146.437 68.9644 145.996 69.3261H167.331C166.891 68.9649 166.5 68.548 166.168 68.0859C165.484 67.0467 165.01 65.8836 164.774 64.6623C164.454 62.67 164.318 60.6525 164.369 58.6353V0C163.257 0.399751 162.273 0.727774 161.448 0.984025C160.623 1.24028 159.772 1.49653 158.885 1.75278L156.261 2.5164L153.017 3.45938C151.797 3.81301 150.69 4.11539 149.722 4.36139H149.691C148.399 4.68427 147.205 5.03793 146.047 5.42743L145.878 5.48893C146.254 5.78738 146.595 6.12591 146.898 6.49854Z" fill="currentColor"/>
+        <path d="M170.463 24.9895C171.231 25.8242 171.903 26.7422 172.467 27.7263C173.113 28.8128 173.876 30.217 174.737 31.898L190.112 63.4066C191.137 65.5079 191.757 68.1421 190.835 70.2895L189.103 73.877C188.614 74.804 187.925 75.6104 187.086 76.2372C186.246 76.864 185.277 77.2956 184.249 77.5004C183.168 77.6893 182.06 77.6428 180.998 77.3642C179.937 77.0856 178.948 76.5815 178.099 75.886C177.657 75.5316 177.177 75.2258 176.67 74.9738C175.467 74.3776 174.147 74.0572 172.805 74.0359C171.784 74.0041 170.767 74.1809 169.816 74.5554C168.865 74.9299 168.001 75.4942 167.275 76.2141C166.557 76.9289 165.992 77.7832 165.615 78.7245C165.239 79.6658 165.059 80.6742 165.087 81.6875C165.049 82.9157 165.285 84.1369 165.779 85.262C166.273 86.3872 167.012 87.3879 167.942 88.1912C169.838 89.8517 172.344 90.6922 175.383 90.6922C178.532 90.6967 181.574 89.5544 183.942 87.4788C186.469 85.3366 188.882 81.8977 191.117 77.2288L192.716 73.9796L192.839 73.7182L193.305 72.7649L193.356 72.6317L207.937 40.1237C209.352 37.2588 210.643 34.8141 211.781 32.8564C212.904 30.912 214.157 29.0457 215.532 27.2702C216.168 26.5014 216.696 25.871 217.157 25.3432C217.582 24.846 218.05 24.388 218.556 23.9748C218.927 23.6751 219.323 23.4077 219.74 23.1753H205.462C206.328 24.4412 206.733 26.2503 206.671 28.5514C206.616 31.1035 206.263 33.6404 205.621 36.1108C204.877 38.873 203.885 41.5626 202.658 44.1468L200.347 48.9387H200.101L193.377 34.7476C192.812 33.6299 192.317 32.4779 191.896 31.2984C191.605 30.6118 191.355 29.9084 191.148 29.1921C190.85 28.2448 190.678 27.2627 190.635 26.2708C190.621 25.6639 190.762 25.0635 191.043 24.5257C191.325 23.9879 191.738 23.5303 192.244 23.1958H167.952L168.141 23.2778C169.014 23.7002 169.801 24.2805 170.463 24.9895Z" fill="currentColor"/>
+        <path d="M205.456 23.2009H205.462L205.456 23.1953V23.2009Z" fill="currentColor"/>
+        <path d="M221.051 29.7302L221.149 29.8378C221.207 29.8993 221.262 29.9643 221.313 30.0326C221.998 31.0731 222.471 32.238 222.707 33.4612C223.027 35.45 223.162 37.4642 223.112 39.478V42.9117V57.6359V58.6301C223.163 60.6454 223.029 62.6612 222.712 64.652C222.475 65.8755 221.999 67.0404 221.313 68.0807C220.981 68.5445 220.59 68.963 220.149 69.326H241.5C241.06 68.963 240.669 68.5445 240.337 68.0807C239.651 67.0419 239.176 65.8788 238.938 64.6572C238.62 62.6663 238.486 60.6506 238.538 58.6353V38.2018C238.537 36.949 238.892 35.7216 239.561 34.6628C240.231 33.6039 241.188 32.757 242.32 32.2209C244.304 31.3087 246.164 31.155 247.835 31.9955C248.531 32.3351 249.13 32.8444 249.577 33.4766C250.063 34.1445 250.39 34.9137 250.536 35.7265C250.712 36.943 250.787 38.1721 250.761 39.4011V58.6507C250.816 60.666 250.682 62.6821 250.361 64.6725C250.127 65.8944 249.653 67.0578 248.967 68.096C248.635 68.5611 248.242 68.9799 247.799 69.3414H269.083C268.642 68.9816 268.251 68.5645 267.92 68.1011C267.232 67.0635 266.757 65.9 266.521 64.6777C266.203 62.6852 266.069 60.6677 266.121 58.6507V36.4696C266.18 34.5002 266.008 32.5308 265.608 30.6015C265.291 29.2916 264.691 28.067 263.85 27.014C262.441 25.2868 260.032 23.2266 256.552 23.2266C245.877 23.2266 239.722 29.6789 238.769 31.2728L238.569 31.6111L238.538 23.2727C237.431 23.6622 236.447 23.9902 235.617 24.2567C234.787 24.5232 233.931 24.7692 233.054 25.0203L230.43 25.7891L227.186 26.7321C225.966 27.0857 224.859 27.3829 223.891 27.6341C223.317 27.7724 222.743 27.9108 222.071 28.0594L221.277 28.3362L220.047 28.7615C220.417 29.0456 220.754 29.3705 221.051 29.7302Z" fill="currentColor"/>
+      </svg>
+      </div>
+    </div>
+  </header>
+  <div class="cover-meta">
+    <span class="sync-chip"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></span>
+    <button class="btn-secondary btn-sm" id="export-btn">⬇ Exportar a Excel</button>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <main id="view" role="tabpanel"></main>
+</div>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal-box modal-wrap" id="modal-box"></div>
+</div>
+
+<!-- ============================================================
+     CONFIGURACIÓN DEL WEB APP DE GOOGLE APPS SCRIPT
+     - url: la "URL de la aplicación web" que devuelve Apps Script al
+       implementar (termina en /exec).
+     - token: el mismo valor que ACCESS_TOKEN en Code.gs.
+       No es un login por persona: cualquiera con este link + token puede
+       editar, igual que compartir el Sheet con "cualquiera con el link".
+     Al abrir la página se hace UNA lectura que trae todo: las tareas base
+     leídas en vivo de "01"/"02" (que el script nunca escribe) y lo
+     editable desde la web (estados, fechas, links, notas, tareas nuevas
+     y reuniones, guardado en las pestañas "WebApp - ..."). Después solo
+     escribe cuando el usuario crea, edita o borra algo.
+     Mientras esto no esté completo (o el Web App no responda), el sitio
+     sigue funcionando en modo local (localStorage) con los datos
+     incluidos en este archivo — no se rompe nada por dejarlo así.
+     ============================================================ -->
+<script>
+  window.WEBER_GAS_CONFIG = {
+    url: "",
+    token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* =====================================================================
+   DATA — extraído de "Noctis I Tablero: PLAN DE TRABAJO" (se reemplaza por la lectura en vivo del Sheet)
+   ===================================================================== */
+let RAW = {"etapa1": [{"fecha": "2026-09-01", "hs": 1, "tarea": "Reunión inicial I Punto de partida", "responsable": "Natalia + Evelyna", "estado": "Finalizado", "resultado": "Relevamiento inicial del negocio y transición IOMA", "obs": null}, {"fecha": "2026-09-08", "hs": 2, "tarea": "Workshop I Estado de situación", "responsable": "Equipo", "estado": "Finalizado", "resultado": "Workshop de diagnóstico: metas, fortalezas, frenos y retos", "obs": null}, {"fecha": "2026-09-10", "hs": 2, "tarea": "Diagnóstico inicial del negocio", "responsable": "Evelyna", "estado": "Finalizado", "resultado": "Noctis · Diagnóstico inicial del negocio", "obs": null}, {"fecha": "2026-09-10", "hs": 1, "tarea": "Definición I Objetivo + prioridades + métricas", "responsable": "Evelyna", "estado": "Finalizado", "resultado": "Documento base del primer ciclo trimestral", "obs": null}, {"fecha": "2026-09-10", "hs": 2, "tarea": "Estratégia integral IOMA", "responsable": "Evelyna", "estado": "Finalizado", "resultado": "Documento base de estratégia integral", "obs": null}], "iniciativas": [{"prioridad": "P2", "area": "Marketing", "tema": "Transición IOMA", "tarea": "Estrategia cambios IOMA", "responsable": "Eve", "inicio": "2026-09-10", "tiempo": "2026-09-10", "cierre": "2026-09-10", "estado": "Finalizada", "obs": "Propuesta estratégica de transición: transparencia + continuidad + acompañamiento."}, {"prioridad": "P2", "area": "Comunicación", "tema": "Transición IOMA", "tarea": "Envío de email a pacientes IOMA", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Implementar la primera comunicación a pacientes con explicación del cambio y alternativas de continuidad."}, {"prioridad": "Transversal", "area": "Comunicación", "tema": "Médicos derivadores", "tarea": "Media Kit para médicos", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Tarea preparatoria para el frente de derivadores. No computa en P1/P2/P3 hasta activar ese frente."}, {"prioridad": "P1", "area": "Marketing", "tema": "Base de pacientes", "tarea": "Análisis de base de datos de pacientes", "responsable": "Eve", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Analizar la base disponible y definir segmentación útil para transición IOMA, seguimiento y futuras decisiones."}, {"prioridad": "P2", "area": "Procesos internos", "tema": "Transición IOMA", "tarea": "Armar KIT IOMA interno: qué cambia, por qué, alternativas y respuestas frecuentes", "responsable": "Nati", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Alinear recepción, WhatsApp, administración, técnicos y profesionales antes de ampliar la comunicación."}, {"prioridad": "P1", "area": "Métricas", "tema": "Segmentación IOMA", "tarea": "Segmentar base IOMA por tipo de paciente", "responsable": "Eve", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Separar como mínimo: pacientes activos de Natalia + IOMA; históricos de Natalia + IOMA; IOMA de otros profesionales; nuevas consultas."}, {"prioridad": "P2", "area": "Comercial", "tema": "Seguimiento de pacientes", "tarea": "Definir respuestas y circuito de seguimiento para consultas IOMA", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Ordenar respuestas ante dudas frecuentes y evitar responder únicamente con precio; contemplar alternativas de continuidad."}, {"prioridad": "P1", "area": "Métricas", "tema": "Transición IOMA", "tarea": "Definir registro de resultados de la campaña IOMA", "responsable": "Eve", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": "Registrar base impactada, apertura, clic, consulta, continuidad con Natalia, continuidad por IOMA, no continuidad y motivo."}, {"prioridad": "P2", "area": "Comunicación", "tema": "Planning RRSS", "tarea": "Plan trimestral: OCT - NOV - DIC", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": null}, {"prioridad": "P2", "area": "Comunicación", "tema": "Pauta", "tarea": "Estratñegia trimestral", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": null}, {"prioridad": "P2", "area": "Comunicación", "tema": "Odontologos", "tarea": "Resultado de la acción", "responsable": "Fer", "inicio": null, "tiempo": null, "cierre": null, "estado": "Pendiente", "obs": null}], "finalizados": [], "backlog": [], "metricas": [{"prioridad": 1, "metrica": "% IOMA / otras / particulares", "dice": "Cómo evoluciona el mix de pacientes.", "mide": "Pacientes de cada grupo / total de pacientes.", "frecuencia": "Mensual", "fuente": "Software / CRM"}, {"prioridad": 1, "metrica": "Estudios por cobertura", "dice": "Qué coberturas sostienen el volumen de estudios.", "mide": "Cantidad de estudios realizados por cobertura.", "frecuencia": "Mensual", "fuente": "Software / facturación"}, {"prioridad": 1, "metrica": "Facturación por tipo de paciente", "dice": "Qué parte del ingreso proviene de cada grupo.", "mide": "Facturación mensual segmentada.", "frecuencia": "Mensual", "fuente": "Administración"}, {"prioridad": 1, "metrica": "Margen de servicios prioritarios", "dice": "Si los servicios clave son económicamente sostenibles.", "mide": "Ingreso menos costo directo por servicio.", "frecuencia": "Mensual", "fuente": "Administración / costos"}, {"prioridad": 1, "metrica": "Ocupación / disponibilidad", "dice": "Si hay capacidad para absorber demanda.", "mide": "Turnos ocupados / capacidad disponible por estudio.", "frecuencia": "Mensual", "fuente": "Agenda / software"}, {"prioridad": 2, "metrica": "Consultas no-IOMA", "dice": "Volumen real de oportunidades del nuevo modelo.", "mide": "Cantidad de consultas de particulares y coberturas sostenibles.", "frecuencia": "Semanal / mensual", "fuente": "CRM / WhatsApp / formularios"}, {"prioridad": 2, "metrica": "Conversión consulta → turno", "dice": "Qué tan efectivo es el primer tramo comercial.", "mide": "Turnos generados / consultas recibidas.", "frecuencia": "Mensual", "fuente": "CRM / agenda"}, {"prioridad": 2, "metrica": "Conversión a estudio", "dice": "Qué proporción llega al servicio principal.", "mide": "Estudios realizados / oportunidades o turnos definidos.", "frecuencia": "Mensual", "fuente": "CRM / software"}, {"prioridad": 2, "metrica": "No conversión", "dice": "Cuánto volumen se pierde antes de concretar.", "mide": "Oportunidades no convertidas / total de oportunidades.", "frecuencia": "Mensual", "fuente": "CRM"}, {"prioridad": 2, "metrica": "Motivos de pérdida", "dice": "Por qué no convierten los pacientes.", "mide": "Clasificación: precio, fecha, cobertura, no responde, otro.", "frecuencia": "Mensual", "fuente": "CRM / recepción"}, {"prioridad": 2, "metrica": "Seguimiento realizado", "dice": "Si el proceso comercial se ejecuta.", "mide": "Oportunidades con seguimiento / oportunidades que lo requerían.", "frecuencia": "Semanal / mensual", "fuente": "CRM"}, {"prioridad": 3, "metrica": "Seguimiento de pacientes actuales", "dice": "Si Noctis mantiene continuidad donde corresponde.", "mide": "Pacientes contactados / pacientes que debían ser contactados.", "frecuencia": "Mensual", "fuente": "CRM / software"}, {"prioridad": 3, "metrica": "Controles recuperados", "dice": "Pacientes que vuelven gracias al seguimiento.", "mide": "Cantidad de controles agendados desde acciones de seguimiento.", "frecuencia": "Mensual", "fuente": "Agenda / CRM"}, {"prioridad": 3, "metrica": "Continuidad del tratamiento", "dice": "Si el paciente avanza al siguiente paso indicado.", "mide": "Pacientes que realizan la instancia siguiente / pacientes indicados.", "frecuencia": "Mensual", "fuente": "Software / historia / agenda"}, {"prioridad": 3, "metrica": "Recomendaciones", "dice": "Capacidad de la experiencia para generar nuevos pacientes.", "mide": "Nuevos pacientes cuyo origen es recomendación.", "frecuencia": "Mensual", "fuente": "Encuesta / CRM"}, {"prioridad": 3, "metrica": "Satisfacción / incidencias", "dice": "Calidad percibida y fricciones del recorrido.", "mide": "Encuesta, reseñas e incidencias registradas.", "frecuencia": "Mensual", "fuente": "Encuestas / Google / equipo"}]};
+
+/* =====================================================================
+   OBJETIVO Y PRIORIDADES (contenido estratégico, Hoja 02)
+   ===================================================================== */
+let OBJETIVO = "Poner en marcha el nuevo modelo de Noctis para reducir progresivamente la dependencia de IOMA, aumentando la participación de pacientes particulares y coberturas sostenibles, con un sistema que permita captar, convertir, hacer seguimiento y medir resultados mes a mes.";
+let PRIORIDADES = [{"n": 1, "tt": "Tener control del nuevo mix de pacientes y de los números que sostienen el modelo", "desc": "Saber mes a mes quién llega, por qué cobertura, qué estudio realiza, cuánto convierte y qué impacto genera en el negocio."}, {"n": 2, "tt": "Aumentar la conversión de consultas no-IOMA en pacientes y estudios", "desc": "Lograr que las oportunidades recibidas tengan seguimiento y aumentar progresivamente la proporción que termina en turno y/o estudio."}, {"n": 3, "tt": "Fidelizar la base actual y fortalecer el recorrido del paciente", "desc": "Dar continuidad a los pacientes cuando corresponda: informe, próximos pasos, controles, tratamiento, recomendación y experiencia."}];
+/* Grupos del tablero = prioridades de la hoja 02 (columna PRIORIDAD). */
+const FASE_IDS = [1,2,3,4];
+let FASE_META = {};
+function buildFaseMeta_(){
+  FASE_META = {0:{label:"Diagnóstico y estrategia", sub:"Etapa 1 · Reuniones iniciales"}};
+  [1,2,3].forEach(n=>{
+    const p = PRIORIDADES.find(x=>Number(x.n)===n);
+    FASE_META[n] = {label:"P"+n+" · "+(p ? p.tt : "Prioridad "+n), sub:"Prioridad "+n};
+  });
+  FASE_META[4] = {label:"Transversal", sub:"Acompaña a todas las prioridades"};
+}
+buildFaseMeta_();
+
+/* =====================================================================
+   NORMALIZACIÓN Y CLASIFICACIÓN
+   ===================================================================== */
+function normEstado(raw){
+  if(!raw) return "Por hacer";
+  const s = raw.trim().toLowerCase();
+  if(s.startsWith("final")) return "Completado";
+  if(s.startsWith("en proceso")) return "En proceso";
+  if(s.startsWith("actualiz")) return "En proceso";
+  if(s.startsWith("revis")) return "En revisión";
+  if(s.startsWith("propuesta")) return "En revisión";
+  if(s.startsWith("bloq")) return "Bloqueado";
+  return "Por hacer";
+}
+function classifyFase(t){
+  const m = String(t.prioridad||"").match(/[123]/);
+  return m ? Number(m[0]) : 4;
+}
+const RESP_INITIALS = {"Eve":"EV","Ger":"GE","Fer":"FE","Ari":"AR","Loopa":"LO","Supervisores":"SU","Equipo":"EQ"};
+function initials(r){
+  if(!r) return "—";
+  if(RESP_INITIALS[r]) return RESP_INITIALS[r];
+  const parts = r.trim().split(/\s+/);
+  return (parts.length>1 ? parts[0][0]+parts[1][0] : r.slice(0,2)).toUpperCase();
+}
+function respLabel(r){ return r || "Sin asignar"; }
+function allResponsables(){
+  const set = new Set(RESPONSABLES);
+  customTasksState.forEach(c=>{ if(c.responsable) set.add(c.responsable); });
+  return Array.from(set);
+}
+function toHref(s){ const v=s.trim(); return /^https?:\/\//i.test(v) ? v : "https://"+v; }
+function fmtDate(iso){
+  if(!iso) return "—";
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString("es-AR",{day:"2-digit",month:"short"}).replace(".","");
+}
+function fmtDateLong(iso){
+  if(!iso) return "—";
+  const d = new Date(iso+"T00:00:00");
+  return d.toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"});
+}
+function todayMidnight(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function dueDateOf(t){ return t.cierre || t.tiempo || t.inicio || null; }
+function isOverdue(t, estado){
+  if(estado==="Completado") return false;
+  const due = dueDateOf(t);
+  if(!due) return false;
+  return new Date(due+"T00:00:00") < todayMidnight();
+}
+function urgencia(t, estado){
+  if(estado==="Completado") return "Baja";
+  if(estado==="Bloqueado") return "Alta";
+  const due = dueDateOf(t);
+  if(!due) return "Baja";
+  const days = Math.round((new Date(due+"T00:00:00") - todayMidnight())/86400000);
+  if(days < 0) return "Alta";
+  if(days <= 10) return "Alta";
+  if(days <= 25) return "Media";
+  return "Baja";
+}
+
+/* =====================================================================
+   CONSTRUCCIÓN DEL DATASET UNIFICADO
+   ===================================================================== */
+/* El id se deriva del contenido (no de la posición) para que los estados,
+   fechas y links guardados sigan apuntando a la misma tarea cuando se
+   vuelven a importar los datos del Sheet con filas nuevas o reordenadas. */
+let idSeen = {};
+function hashId(str){
+  let h = 5381;
+  for(let i=0;i<str.length;i++) h = (((h<<5)+h) ^ str.charCodeAt(i)) >>> 0;
+  return "t"+h.toString(36);
+}
+function mk(base, source, fase){
+  const key = [source, base.area||"", base.tema||"", base.tarea||""].join("|");
+  idSeen[key] = (idSeen[key]||0) + 1;
+  const id = hashId(key + "#" + idSeen[key]);
+  const estadoOriginal = base.estado || null;
+  return Object.assign({id, source, fase: fase!==undefined?fase:classifyFase(base), estadoOriginal}, base);
+}
+let TASKS = [];
+function rebuildTasks_(){
+  idSeen = {};
+  TASKS = [];
+  RAW.etapa1.forEach(e=>{
+    TASKS.push(mk({area:"Proceso", tema:"Diagnóstico y estrategia", tarea:e.tarea, responsable:e.responsable,
+      inicio:e.fecha, tiempo:e.fecha, cierre:e.fecha, estado:e.estado, obs:e.resultado}, "etapa1", 0));
+  });
+  RAW.iniciativas.forEach(t=> TASKS.push(mk(t, "iniciativa")));
+  RAW.finalizados.forEach(t=> TASKS.push(mk(t, "finalizado")));
+  RAW.backlog.forEach(str=>{
+    const parts = str.split(" I ").map(s=>s.trim());
+    const area = parts[0];
+    let tema = null, desc = parts.slice(1).join(" I ");
+    if(parts.length >= 3){ tema = parts[1]; desc = parts.slice(2).join(" I "); }
+    const faseMatch = desc.match(/Fase\s*(\d)/i);
+    const subfase = faseMatch ? "Fase "+faseMatch[1] : null;
+    const descClean = desc.replace(/Fase\s*\d\s*[·.]?\s*/i,"").trim();
+    const tarea = tema ? (tema+" — "+descClean) : descClean;
+    TASKS.push(mk({area, tema, tarea, subfase, responsable:null, inicio:null, tiempo:null, cierre:null, estado:null, obs:null}, "backlog"));
+  });
+}
+rebuildTasks_(); // construye TASKS a partir de RAW, incluido en este archivo
+
+/* Las tareas del Sheet editadas desde la web se guardan como copia en
+   "WebApp - Tareas nuevas" con id "x"+id original (y la original se oculta),
+   así la hoja 02 no se toca. Esas copias no llevan la etiqueta "Nueva". */
+const EDITED_PREFIX = "x";
+function isEditedCopy(id){ return String(id||"").startsWith(EDITED_PREFIX); }
+function customAsTask(doc){
+  const fase = Number(doc.fase);
+  return {
+    id: doc.id, source:"custom", area: doc.area || "General", tema: doc.tema || null,
+    tarea: doc.tarea, responsable: doc.responsable || null,
+    inicio: doc.inicio || null, tiempo: null, cierre: doc.cierre || null,
+    estado: doc.estado || "Por hacer", obs: doc.obs || null, link: doc.link || null,
+    fase: [1,2,3].includes(fase) ? fase : classifyFase(doc), estadoOriginal: doc.estado || null,
+    edited: isEditedCopy(doc.id),
+  };
+}
+
+/* =====================================================================
+   STORE (db capability con fallback local)
+   ===================================================================== */
+let dbNs = null, overridesDoc = null, notesCol = null, customCol = null, meetingsCol = null;
+let overridesState = {};   // {taskId: {estado, link}} — patches onto the seed tasks from the Excel
+let notesState = [];       // [{id,text,author,createdAt}]
+let customTasksState = []; // [{id,tarea,area,tema,responsable,fase,inicio,cierre,estado,link,obs,createdAt}] — tasks added live
+let meetingsState = [];    // [{id,fecha,responsable,duracion,resumen,createdAt}]
+let dbMode = "checking";   // checking | live | local
+
+function localKey(k){ return "noctis-tracker:"+k; }
+function loadLocal(){
+  try{
+    overridesState = JSON.parse(localStorage.getItem(localKey("overrides"))||"{}");
+    notesState = JSON.parse(localStorage.getItem(localKey("notes"))||"[]");
+    customTasksState = JSON.parse(localStorage.getItem(localKey("customTasks"))||"[]");
+    meetingsState = JSON.parse(localStorage.getItem(localKey("meetings"))||"[]");
+  }catch(e){ overridesState = {}; notesState = []; customTasksState = []; meetingsState = []; }
+}
+function saveLocalOverrides(){ try{ localStorage.setItem(localKey("overrides"), JSON.stringify(overridesState)); }catch(e){} }
+function saveLocalNotes(){ try{ localStorage.setItem(localKey("notes"), JSON.stringify(notesState)); }catch(e){} }
+function saveLocalCustom(){ try{ localStorage.setItem(localKey("customTasks"), JSON.stringify(customTasksState)); }catch(e){} }
+function saveLocalMeetings(){ try{ localStorage.setItem(localKey("meetings"), JSON.stringify(meetingsState)); }catch(e){} }
+
+function setSyncUI(mode){
+  dbMode = mode;
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  dot.classList.remove("-on","-local");
+  if(mode==="live"){ dot.classList.add("-on"); lbl.textContent = "Sincronizado con el equipo"; }
+  else if(mode==="local"){ dot.classList.add("-local"); lbl.textContent = "Modo local (solo este dispositivo)"; }
+  else { lbl.textContent = "Conectando…"; }
+}
+
+async function patchSeedOverride(taskId, patch){
+  overridesState[taskId] = Object.assign({}, overridesState[taskId], patch);
+  render();
+  if(dbMode==="live" && overridesDoc){
+    const payload = {tasks:{}};
+    payload.tasks[taskId] = Object.assign({}, patch, {updatedAt:new Date().toISOString()});
+    try{ await overridesDoc.update(payload); }
+    catch(e){ try{ await overridesDoc.set(payload); }catch(e2){ console.error(e2); } }
+  } else {
+    saveLocalOverrides();
+  }
+}
+
+async function patchCustomTask(taskId, patch){
+  const idx = customTasksState.findIndex(c=>c.id===taskId);
+  if(idx>=0) customTasksState[idx] = Object.assign({}, customTasksState[idx], patch);
+  render();
+  if(dbMode==="live" && customCol){
+    try{ await customCol.doc(taskId).update(patch); }catch(e){ console.error(e); }
+  } else {
+    saveLocalCustom();
+  }
+}
+
+/* Con el Sheet conectado, las tareas se escriben directo en su fila de "02"
+   y las reuniones en la tabla de "01". Se muestra el cambio al instante,
+   se guarda (en orden) y al terminar se vuelve a leer el Sheet. */
+const ESTADO_A_SHEET = {"Por hacer":"Pendiente","En proceso":"En proceso","En revisión":"Revisar","Completado":"Finalizada","Bloqueado":"Bloqueado"};
+function sheetLive(){ return dbMode==="live" && !!gasData; }
+
+let sheetQueue = Promise.resolve();
+let sheetPending = 0;
+async function sheetWrite(action, payload){
+  sheetPending++;
+  const job = sheetQueue.then(()=>gasWrite_(action, payload)).catch(e=>{
+    console.error(e);
+    alert("No se pudo guardar en el Sheet: " + e.message);
+  });
+  sheetQueue = job;
+  await job;
+  // La relectura cuenta como parte del guardado: hasta que termina, las
+  // tareas recién creadas siguen con id provisorio ("tmp…").
+  if(sheetPending===1){ try{ await gasRefresh_(); }catch(e){ console.error(e); } }
+  sheetPending--;
+}
+
+function sheetTaskEdit(t, fields){
+  const local = TASKS.find(x=>x.id===t.id);
+  if(local){
+    Object.assign(local, fields);
+    if(fields.estado) local.estadoOriginal = ESTADO_A_SHEET[fields.estado] || fields.estado;
+    if(fields.prioridad!==undefined) local.fase = classifyFase(local);
+  }
+  const ov = overridesState[t.id];
+  if(ov){ delete ov.estado; delete ov.inicio; delete ov.cierre; }
+  if(fields.link!==undefined) overridesState[t.id] = Object.assign({}, overridesState[t.id], {link: fields.link});
+  render();
+  return sheetWrite("updateTask", {id: t.id, fields});
+}
+
+function sheetDeleteTask(t){
+  overridesState[t.id] = Object.assign({}, overridesState[t.id], {hidden:true});
+  render();
+  return sheetWrite("deleteTask", {id: t.id});
+}
+
+function setEstado(t, estado){
+  if(t.source==="custom") return patchCustomTask(t.id, {estado});
+  if(sheetLive()) return sheetTaskEdit(t, {estado});
+  return patchSeedOverride(t.id, {estado});
+}
+function setLink(t, link){
+  const value = link && link.trim() ? link.trim() : null;
+  if(t.source==="custom") return patchCustomTask(t.id, {link:value});
+  return patchSeedOverride(t.id, {link:value});
+}
+
+/* Guarda la edición de cualquier tarea (solo los campos que cambiaron).
+   Sin Sheet conectado, las tareas base pasan a una copia local editable. */
+async function saveTaskEdits(t, fields){
+  if(t.source==="custom") return patchCustomTask(t.id, fields);
+  if(sheetLive()) return sheetTaskEdit(t, fields);
+  const base = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio,
+    cierre:t.cierre||t.tiempo, estado:currentEstado(t), obs:t.obs, link:taskLink(t), fase:t.fase};
+  const copy = Object.assign(base, fields, {id: EDITED_PREFIX+t.id});
+  await Promise.all([addCustomTask(copy), patchSeedOverride(t.id, {hidden:true})]);
+}
+
+async function addCustomTask(data){
+  if(sheetLive()){
+    customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
+    render();
+    return sheetWrite("addTask", {fields: data});
+  }
+  const local = Object.assign({id:"c"+Date.now()}, data, {createdAt:new Date().toISOString()});
+  customTasksState.unshift(local);
+  render();
+  if(dbMode==="live" && customCol){
+    try{ await customCol.doc(local.id).set(local); }catch(e){ console.error(e); }
+  } else {
+    saveLocalCustom();
+  }
+}
+
+async function deleteCustomTask(taskId){
+  customTasksState = customTasksState.filter(c=>c.id!==taskId);
+  render();
+  if(dbMode==="live" && customCol){
+    try{ await customCol.doc(taskId).delete(); }catch(e){ console.error(e); }
+  } else {
+    saveLocalCustom();
+  }
+}
+
+/* Se muestra al instante y después se guarda: sin esto, en modo
+   sincronizado no aparecía nada hasta recargar la página. */
+async function addMeeting(data){
+  if(sheetLive()){
+    RAW.etapa1.push({fecha:data.fecha, hs:data.duracion, tarea:data.tarea||"Encuentro I Estado del proceso de trabajo",
+      responsable:data.responsable, estado:"Finalizado", resultado:data.resumen, obs:null});
+    rebuildTasks_();
+    render();
+    return sheetWrite("addMeetingSheet", data);
+  }
+  const meeting = Object.assign({}, data, {id:"m"+Date.now(), createdAt:new Date().toISOString()});
+  meetingsState.unshift(meeting);
+  render();
+  if(dbMode==="live" && meetingsCol){
+    try{ await meetingsCol.doc(meeting.id).set(meeting); }catch(e){ console.error(e); }
+  } else {
+    saveLocalMeetings();
+  }
+}
+
+async function deleteMeeting(id){
+  meetingsState = meetingsState.filter(m=>m.id!==id);
+  render();
+  if(dbMode==="live" && meetingsCol){
+    try{ await meetingsCol.doc(id).delete(); }catch(e){ console.error(e); }
+  } else {
+    saveLocalMeetings();
+  }
+}
+
+function deleteSheetMeeting(e){
+  RAW.etapa1 = RAW.etapa1.filter(x=>x!==e);
+  rebuildTasks_();
+  render();
+  return sheetWrite("deleteMeetingSheet", {fecha:e.fecha, tarea:e.tarea, resultado:e.resultado});
+}
+
+async function addNote(text, author){
+  const note = {id:"n"+Date.now(), text, author, createdAt:new Date().toISOString()};
+  notesState.unshift(note);
+  render();
+  if(dbMode==="live" && notesCol){
+    try{ await notesCol.doc(note.id).set(note); }catch(e){ console.error(e); }
+  } else {
+    saveLocalNotes();
+  }
+}
+
+async function deleteNote(id){
+  notesState = notesState.filter(n=>n.id!==id);
+  render();
+  if(dbMode==="live" && notesCol){
+    try{ await notesCol.doc(id).delete(); }catch(e){ console.error(e); }
+  } else {
+    saveLocalNotes();
+  }
+}
+
+/* =====================================================================
+   APPS SCRIPT ADAPTER
+   Implementa la misma interfaz que la db capability de arriba
+   (doc/collection/onSnapshot), respaldada por un Web App de Google Apps
+   Script que lee y escribe en el Google Sheet.
+
+   - UNA sola lectura al abrir la página: trae en el mismo request las
+     tareas base (leídas en vivo de "01"/"02") y lo editable desde la web.
+   - Escribe solo cuando el usuario crea, edita o borra algo.
+   - Sin polling, sin triggers, sin pestañas espejo.
+   ===================================================================== */
+const GAS_CFG = window.WEBER_GAS_CONFIG || {};
+let gasData = null; // snapshot leído al abrir
+
+function gasConfigured(){
+  return !!(GAS_CFG.url && GAS_CFG.token && !/YOUR-/.test(GAS_CFG.url + GAS_CFG.token));
+}
+
+async function gasRead_(){
+  const sep = GAS_CFG.url.indexOf("?")>=0 ? "&" : "?";
+  const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token));
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || "error leyendo el Sheet");
+  return json;
+}
+
+/* Vuelve a leer el Sheet después de guardar, para quedar igual que la hoja. */
+async function gasRefresh_(){
+  gasData = await gasRead_();
+  gasApplySeed_(gasData.seed);
+  overridesState = gasData.overrides || {};
+  notesState = gasData.notes || [];
+  customTasksState = (gasData.customTasks || []).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
+  meetingsState = gasData.meetings || [];
+  render();
+}
+
+/* Content-Type por defecto (text/plain) a propósito: evita el preflight
+   CORS, que los Web Apps de Apps Script no responden. */
+async function gasWrite_(action, payload){
+  const res = await fetch(GAS_CFG.url, {
+    method: "POST",
+    body: JSON.stringify({token: GAS_CFG.token, action: action, payload: payload})
+  });
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || ("error en "+action));
+  return json.result;
+}
+
+/* Reemplaza las tareas base por las que vienen del Sheet. */
+function gasApplySeed_(seed){
+  if(!seed) return;
+  RAW.etapa1 = seed.etapa1 || [];
+  RAW.iniciativas = seed.iniciativas || [];
+  RAW.finalizados = seed.finalizados || [];
+  RAW.backlog = seed.backlog || [];
+  if(seed.objetivo) OBJETIVO = seed.objetivo;
+  if(seed.prioridades && seed.prioridades.length) PRIORIDADES = seed.prioridades;
+  if(seed.metricas) RAW.metricas = seed.metricas;
+  buildFaseMeta_();
+  rebuildTasks_();
+}
+
+function gasOverridesDoc_(){
+  return {
+    async update(payload){
+      const patch = (payload && payload.tasks) || {};
+      for(const taskId of Object.keys(patch)){
+        await gasWrite_("setOverride", {taskId: taskId, patch: patch[taskId] || {}});
+      }
+    },
+    async set(payload){ return this.update(payload); },
+    onSnapshot(cb){
+      cb({exists:true, data: ()=> ({tasks: (gasData && gasData.overrides) || {}})});
+    }
+  };
+}
+
+const GAS_COLLECTIONS = {
+  notes:       {key:"notes",       add:"addNote",        update:null,                del:"deleteNote"},
+  customTasks: {key:"customTasks", add:"addCustomTask",  update:"updateCustomTask",  del:"deleteCustomTask"},
+  meetings:    {key:"meetings",    add:"addMeeting",     update:null,                del:"deleteMeeting"}
+};
+
+function gasCollection_(name){
+  const cfg = GAS_COLLECTIONS[name];
+  const ref = {
+    doc(id){
+      return {
+        async set(data){ await gasWrite_(cfg.add, Object.assign({}, data, {id: id})); },
+        async update(patch){ if(cfg.update) await gasWrite_(cfg.update, {id: id, patch: patch}); },
+        async delete(){ await gasWrite_(cfg.del, {id: id}); }
+      };
+    },
+    orderBy(){ return ref; },
+    limit(){ return ref; },
+    onSnapshot(cb){
+      cb({docs: ((gasData && gasData[cfg.key]) || []).map(row=>({data: ()=> row}))});
+    }
+  };
+  return ref;
+}
+
+async function initGasStore_(){
+  if(!gasConfigured()) return null;
+  try{
+    gasData = await gasRead_();
+  }catch(e){ console.error("Apps Script no disponible:", e); return null; }
+  gasApplySeed_(gasData.seed);
+  return {
+    doc(path){
+      if(path==="board/overrides") return gasOverridesDoc_();
+      throw new Error("doc path no soportado: "+path);
+    },
+    collection(name){
+      if(!GAS_COLLECTIONS[name]) throw new Error("collection no soportada: "+name);
+      return gasCollection_(name);
+    }
+  };
+}
+
+async function initStore(){
+  loadLocal();
+  try{
+    if(window.claude && typeof window.claude.use === "function"){
+      dbNs = await window.claude.use("db");
+    }
+  }catch(e){ dbNs = null; }
+  if(!dbNs){
+    try{ dbNs = await initGasStore_(); }
+    catch(e){ console.error("Error inicializando Apps Script:", e); dbNs = null; }
+  }
+  if(!dbNs){ setSyncUI("local"); render(); return; }
+  overridesDoc = dbNs.doc("board/overrides");
+  notesCol = dbNs.collection("notes");
+  customCol = dbNs.collection("customTasks");
+  meetingsCol = dbNs.collection("meetings");
+  setSyncUI("live");
+  overridesDoc.onSnapshot(snap=>{
+    const data = snap.exists ? snap.data() : null;
+    overridesState = (data && data.tasks) || {};
+    render();
+  }, err=>{ console.error(err); setSyncUI("local"); render(); });
+  notesCol.orderBy("createdAt","desc").limit(200).onSnapshot(snap=>{
+    notesState = snap.docs.map(d=>d.data());
+    render();
+  }, err=>{ console.error(err); });
+  customCol.onSnapshot(snap=>{
+    customTasksState = snap.docs.map(d=>d.data()).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
+    render();
+  }, err=>{ console.error(err); });
+  meetingsCol.orderBy("fecha","desc").limit(300).onSnapshot(snap=>{
+    meetingsState = snap.docs.map(d=>d.data());
+    render();
+  }, err=>{ console.error(err); });
+}
+
+function currentEstado(t){
+  if(t.source==="custom") return t.estado || "Por hacer";
+  const ov = overridesState[t.id];
+  if(ov && ov.estado) return ov.estado;
+  return normEstado(t.estadoOriginal);
+}
+function taskLink(t){
+  if(t.source==="custom") return t.link || null;
+  const ov = overridesState[t.id];
+  return (ov && ov.link) || null;
+}
+
+/* =====================================================================
+   ESTADO DE FILTROS Y VISTA
+   ===================================================================== */
+const state = { view:"dashboard", filters:{fase:"", estado:"", responsable:"", prioridad:""} };
+const VIEWS = [
+  {id:"dashboard", label:"Dashboard"},
+  {id:"plan", label:"Plan de trabajo"},
+  {id:"finalizadas", label:"Finalizadas"},
+  {id:"timeline", label:"Timeline"},
+  {id:"reuniones", label:"Reuniones"},
+  {id:"entregables", label:"Entregables"},
+  {id:"metricas", label:"Métricas"},
+  {id:"notas", label:"Notas"},
+];
+const ESTADOS = ["Por hacer","En proceso","En revisión","Completado","Bloqueado"];
+const RESPONSABLES = ["Eve","Fer","Nati","Evelyna","Equipo"];
+
+function trackedTasks(){
+  const seed = TASKS.filter(t=>t.source!=="etapa1")
+    .filter(t=>{ const ov = overridesState[t.id]; return !(ov && ov.hidden); })
+    .map(t=>{
+      const ov = overridesState[t.id];
+      // Un override vacío (null) no pisa las fechas que vienen del Sheet.
+      if(!ov || (ov.inicio==null && ov.cierre==null)) return t;
+      const merged = Object.assign({}, t);
+      if(ov.inicio!=null) merged.inicio = ov.inicio;
+      if(ov.cierre!=null) merged.cierre = ov.cierre;
+      return merged;
+    });
+  return seed.concat(customTasksState.map(customAsTask));
+}
+
+function applyFilters(list){
+  const f = state.filters;
+  return list.filter(t=>{
+    if(f.fase!=="" && String(t.fase)!==f.fase) return false;
+    if(f.estado!=="" && currentEstado(t)!==f.estado) return false;
+    if(f.responsable!==""){
+      if(f.responsable==="__none__"){ if(t.responsable) return false; }
+      else if(t.responsable!==f.responsable) return false;
+    }
+    if(f.prioridad!=="" && urgencia(t, currentEstado(t))!==f.prioridad) return false;
+    return true;
+  });
+}
+
+/* =====================================================================
+   RENDER: SHELL / TABS
+   ===================================================================== */
+function renderTabs(){
+  const nav = document.getElementById("tabs");
+  nav.innerHTML = "";
+  VIEWS.forEach(v=>{
+    const b = document.createElement("button");
+    b.className = "tab-btn" + (state.view===v.id?" -active":"");
+    b.textContent = v.label;
+    b.setAttribute("role","tab");
+    b.setAttribute("aria-selected", state.view===v.id ? "true":"false");
+    b.onclick = ()=>{ state.view=v.id; render(); };
+    nav.appendChild(b);
+  });
+}
+
+function render(){
+  renderTabs();
+  const root = document.getElementById("view");
+  root.innerHTML = "";
+  const fns = {dashboard:renderDashboard, plan:renderPlan, finalizadas:renderFinalizadas, timeline:renderTimeline, reuniones:renderReuniones, entregables:renderEntregables, metricas:renderMetricas, notas:renderNotas};
+  (fns[state.view] || renderDashboard)(root);
+}
+
+/* =====================================================================
+   RENDER: DASHBOARD
+   ===================================================================== */
+function renderDashboard(root){
+  const tasks = trackedTasks();
+  const withEstado = tasks.map(t=>({t, estado:currentEstado(t)}));
+  const total = tasks.length;
+  const completado = withEstado.filter(x=>x.estado==="Completado").length;
+  const enProceso = withEstado.filter(x=>x.estado==="En proceso").length;
+  const enRevision = withEstado.filter(x=>x.estado==="En revisión").length;
+  const porHacer = withEstado.filter(x=>x.estado==="Por hacer").length;
+  const bloqueado = withEstado.filter(x=>x.estado==="Bloqueado").length;
+  const atrasadas = withEstado.filter(x=>isOverdue(x.t, x.estado)).length;
+  const avance = total ? Math.round((completado/total)*100) : 0;
+
+  let bannerClass = "", bannerTitle = "", bannerSub = "";
+  if(bloqueado>0 || atrasadas > total*0.15){
+    bannerClass="-risk"; bannerTitle="El proyecto necesita atención";
+    bannerSub = bloqueado>0 ? bloqueado+" tarea(s) bloqueada(s) y "+atrasadas+" atrasada(s)." : atrasadas+" tareas atrasadas sobre "+total+" totales.";
+  } else if(atrasadas>0){
+    bannerClass="-warn"; bannerTitle="En curso, con algunos pendientes";
+    bannerSub = atrasadas+" tarea(s) pasaron su fecha de cierre estimada.";
+  } else {
+    bannerClass=""; bannerTitle="En curso, buen ritmo";
+    bannerSub = "Sin bloqueos ni atrasos registrados hoy.";
+  }
+
+  const upcoming = withEstado.filter(x=>x.estado!=="Completado" && dueDateOf(x.t))
+    .sort((a,b)=> new Date(dueDateOf(a.t)) - new Date(dueDateOf(b.t))).slice(0,5);
+
+  root.innerHTML = `
+    <div class="view-head">
+      <div>
+        <h2 class="cond">Dashboard · Noctis</h2>
+        <p class="sub">Resumen general del plan de acción del 1er trimestre — Etapa 1 (diagnóstico y estrategia) ya está cerrada.</p>
+      </div>
+    </div>
+
+    <div class="status-banner ${bannerClass}"><span class="dot"></span>
+      <div class="txt"><b>${bannerTitle}</b><span>${bannerSub}</span></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi -accent"><span class="num mono-num">${avance}%</span><span class="lbl">Avance del proyecto</span></div>
+      <div class="kpi"><span class="num mono-num">${total}</span><span class="lbl">Tareas totales</span></div>
+      <div class="kpi"><span class="num mono-num">${completado}</span><span class="lbl">Completadas</span></div>
+      <div class="kpi"><span class="num mono-num">${enProceso}</span><span class="lbl">En proceso</span></div>
+      <div class="kpi"><span class="num mono-num">${porHacer+enRevision}</span><span class="lbl">Pendientes</span></div>
+      <div class="kpi ${atrasadas>0?'-warn':''}"><span class="num mono-num">${atrasadas}</span><span class="lbl">Atrasadas</span></div>
+    </div>
+
+    <div class="fase-row" id="fase-row"></div>
+
+    <div class="strategy-block">
+      <div class="obj-head">
+        <span class="micro">Objetivo del trimestre</span>
+        <p>${OBJETIVO}</p>
+      </div>
+      <div class="prio-list">
+        ${PRIORIDADES.map(p=>`
+          <div class="prio-item">
+            <span class="n">Prioridad ${p.n}</span>
+            <h4>${p.tt}</h4>
+            <p>${p.desc}</p>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <div class="view-head" style="margin-bottom:14px">
+      <h2 class="cond" style="font-size:24px">Próximos hitos</h2>
+    </div>
+    <div class="task-list" id="upcoming-list"></div>
+  `;
+
+  const faseRow = root.querySelector("#fase-row");
+  FASE_IDS.filter(fn=> fn!==4 || withEstado.some(x=>x.t.fase===4)).forEach(fn=>{
+    const inFase = withEstado.filter(x=>x.t.fase===fn);
+    const done = inFase.filter(x=>x.estado==="Completado").length;
+    const pct = inFase.length ? Math.round((done/inFase.length)*100) : 0;
+    const card = document.createElement("div");
+    card.className = "fase-card";
+    card.innerHTML = `
+      <span class="flabel">${FASE_META[fn].label}</span>
+      <span class="fsub">${FASE_META[fn].sub}</span>
+      <div class="fase-bar"><i style="width:${pct}%"></i></div>
+      <div class="fase-nums"><span><b>${done}</b>/${inFase.length} listas</span><span><b>${pct}%</b></span></div>
+    `;
+    faseRow.appendChild(card);
+  });
+  const etapa1Card = document.createElement("div");
+  etapa1Card.className = "fase-card";
+  etapa1Card.style.background = "var(--chrome)";
+  etapa1Card.innerHTML = `
+      <span class="flabel">${FASE_META[0].label}</span>
+      <span class="fsub">${FASE_META[0].sub}</span>
+      <div class="fase-bar"><i style="width:100%"></i></div>
+      <div class="fase-nums"><span><b>${RAW.etapa1.length}</b>/${RAW.etapa1.length} listas</span><span><b>100%</b></span></div>
+  `;
+  faseRow.insertBefore(etapa1Card, faseRow.firstChild);
+
+  const upcomingRoot = root.querySelector("#upcoming-list");
+  if(upcoming.length===0){
+    upcomingRoot.innerHTML = `<div class="empty-note">No hay próximos vencimientos con fecha cargada.</div>`;
+  } else {
+    upcoming.forEach(x=> upcomingRoot.appendChild(taskRow(x.t)));
+  }
+}
+
+/* =====================================================================
+   RENDER: PLAN DE TRABAJO
+   ===================================================================== */
+function renderFilterBar(root, opts){
+  opts = opts || {};
+  const wrap = document.createElement("div");
+  wrap.className = "filter-bar";
+  wrap.innerHTML = `
+    <div class="fgroup"><label>Prioridad</label>
+      <select data-f="fase">
+        <option value="">Todas</option>
+        ${[0].concat(FASE_IDS).map(k=>`<option value="${k}">${FASE_META[k].label}</option>`).join("")}
+      </select>
+    </div>
+    <div class="fgroup"><label>Estado</label>
+      <select data-f="estado">
+        <option value="">Todos</option>
+        ${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}
+      </select>
+    </div>
+    <div class="fgroup"><label>Responsable</label>
+      <select data-f="responsable">
+        <option value="">Todos</option>
+        ${allResponsables().map(r=>`<option value="${r}">${r}</option>`).join("")}
+        <option value="__none__">Sin asignar</option>
+      </select>
+    </div>
+    <div class="fgroup"><label>Urgencia</label>
+      <select data-f="prioridad">
+        <option value="">Todas</option>
+        <option value="Alta">Alta</option>
+        <option value="Media">Media</option>
+        <option value="Baja">Baja</option>
+      </select>
+    </div>
+    <button class="filter-clear">Limpiar filtros</button>
+  `;
+  wrap.querySelectorAll("select").forEach(sel=>{
+    const key = sel.dataset.f;
+    sel.value = state.filters[key];
+    sel.onchange = ()=>{ state.filters[key] = sel.value; render(); };
+  });
+  wrap.querySelector(".filter-clear").onclick = ()=>{ state.filters = {fase:"",estado:"",responsable:"",prioridad:""}; render(); };
+  root.appendChild(wrap);
+}
+
+function taskRow(t){
+  const row = document.createElement("div");
+  const estado = currentEstado(t);
+  const overdue = isOverdue(t, estado);
+  const link = taskLink(t);
+  row.className = "task-row" + (overdue ? " -overdue" : "");
+  const stClass = "st-"+estado.replace(/\s+/g,"-").replace("ó","o");
+  row.innerHTML = `
+    <div class="col-area"><span class="tk-tema">${t.area || "—"}</span></div>
+    <div class="col-tema"><span class="tk-tema">${t.tema || "—"}${t.subfase?" · "+t.subfase:""}</span></div>
+    <div class="col-tarea"><span class="tk-tarea">${t.tarea}${overdue?'<span class="tk-flags"><span class="flag">Atrasada</span></span>':''}${t.source==="custom"&&!t.edited?'<span class="custom-tag">Nueva</span>':''}${link?' 🔗':''}</span></div>
+    <div class="col-resp"><span class="tk-resp">${respLabel(t.responsable)}</span></div>
+    <div class="col-dates">
+      <span><b>Inicio</b> ${fmtDate(t.inicio)}</span><br>
+      <span><b>Cierre</b> ${fmtDate(t.cierre || t.tiempo)}</span>
+    </div>
+    <div class="col-status">
+      <select class="status-select ${stClass}" data-task="${t.id}">
+        ${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}
+      </select>
+    </div>
+    <div class="col-observ"><span class="tk-obs">${t.obs || "—"}</span></div>
+    <div class="col-obs row-actions">
+      <button class="obs-btn" data-obs="${t.id}" aria-label="Editar tarea" title="Editar tarea">✎</button>
+    </div>
+  `;
+  const sel = row.querySelector("select");
+  // Recién creada y todavía guardándose en el Sheet: sin id definitivo no se puede editar.
+  if(String(t.id).startsWith("tmp")){
+    sel.disabled = true;
+    row.querySelector(".obs-btn").disabled = true;
+    row.querySelector(".tk-tarea").insertAdjacentHTML("beforeend", '<span class="custom-tag">Guardando…</span>');
+    return row;
+  }
+  sel.addEventListener("change", ()=>{
+    setEstado(t, sel.value);
+  });
+  row.querySelector(".obs-btn").addEventListener("click", ()=> openDetailModal(t));
+  row.classList.add("-editable");
+  row.addEventListener("click", (e)=>{
+    if(e.target.closest("select,button,a")) return;
+    openDetailModal(t);
+  });
+  return row;
+}
+
+function taskListHead(){
+  const head = document.createElement("div");
+  head.className = "task-row";
+  head.style.borderBottom = "2px solid var(--ink)";
+  head.style.paddingBottom = "8px";
+  head.innerHTML = `
+    <div class="micro">Área</div><div class="micro">Tema</div><div class="micro">Tarea</div><div class="micro">Responsable</div>
+    <div class="micro">Fechas</div><div class="micro">Estado</div><div class="micro">Observaciones</div><div></div>
+  `;
+  return head;
+}
+
+function renderPlan(root){
+  root.innerHTML = `<div class="view-head">
+      <div>
+        <h2 class="cond">Plan de trabajo · Noctis</h2>
+        <p class="sub">Lo que falta hacer o está en proceso, organizado por prioridad del trimestre. Tocá cualquier tarea para editarla. Al marcar una tarea como Completado pasa a Finalizadas. Sumá lo que se agregue en cada encuentro con "+ Nueva tarea".</p>
+      </div>
+      <div class="actions"><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
+    </div>`;
+  root.querySelector("#add-task-btn").addEventListener("click", openAddTaskModal);
+  renderTaskGroups(root, trackedTasks().filter(t=>currentEstado(t)!=="Completado"), "No hay tareas pendientes que coincidan con estos filtros.");
+}
+
+function renderFinalizadas(root){
+  root.innerHTML = `<div class="view-head">
+      <div>
+        <h2 class="cond">Finalizadas · Noctis</h2>
+        <p class="sub">Tareas completadas, organizadas por prioridad del trimestre. Si una se reabre, cambiá su estado y vuelve al Plan de trabajo.</p>
+      </div>
+    </div>`;
+  renderTaskGroups(root, trackedTasks().filter(t=>currentEstado(t)==="Completado"), "No hay tareas finalizadas que coincidan con estos filtros.");
+}
+
+function renderTaskGroups(root, pool, emptyMsg){
+  renderFilterBar(root);
+  const tasks = applyFilters(pool);
+  const countEl = document.createElement("div");
+  countEl.className = "result-count";
+  countEl.textContent = tasks.length + " de " + pool.length + " tareas";
+  root.appendChild(countEl);
+
+  const list = document.createElement("div");
+  list.className = "task-list";
+  root.appendChild(list);
+
+  if(tasks.length===0){
+    list.innerHTML = `<div class="empty-note">${emptyMsg}</div>`;
+    return;
+  }
+
+  FASE_IDS.forEach(fn=>{
+    const inFase = tasks.filter(t=>t.fase===fn).sort((a,b)=> (dueDateOf(a)||"9999").localeCompare(dueDateOf(b)||"9999"));
+    if(inFase.length===0) return;
+    const gh = document.createElement("div");
+    gh.className = "group-head";
+    gh.innerHTML = `<span class="swatch"></span><h3>${FASE_META[fn].label}</h3><span class="count">${inFase.length} tareas</span>`;
+    list.appendChild(gh);
+    list.appendChild(taskListHead());
+    inFase.forEach(t=> list.appendChild(taskRow(t)));
+  });
+}
+
+/* =====================================================================
+   RENDER: TIMELINE
+   ===================================================================== */
+function renderTimeline(root){
+  root.innerHTML = `<div class="view-head"><div>
+      <h2 class="cond">Timeline · Noctis</h2>
+      <p class="sub">Recorrido cronológico del proyecto: desde el diagnóstico (Etapa 1) hasta las tareas con fecha de la Etapa 2.</p>
+    </div></div>`;
+
+  const items = [];
+  RAW.etapa1.forEach(e=> items.push({date:e.fecha, tt:e.tarea, meta:e.responsable+" · "+e.estado, done:true}));
+  trackedTasks().forEach(t=>{
+    const d = t.cierre || t.inicio;
+    if(!d) return;
+    const estado = currentEstado(t);
+    items.push({date:d, tt:t.tarea, meta:(t.tema||t.area)+" · "+respLabel(t.responsable)+" · "+estado, done:estado==="Completado", overdue:isOverdue(t,estado)});
+  });
+  items.sort((a,b)=> a.date.localeCompare(b.date));
+
+  const byMonth = {};
+  items.forEach(it=>{
+    const d = new Date(it.date+"T00:00:00");
+    const key = d.toLocaleDateString("es-AR",{month:"long",year:"numeric"});
+    (byMonth[key] = byMonth[key]||[]).push(it);
+  });
+
+  Object.keys(byMonth).forEach(month=>{
+    const block = document.createElement("div");
+    block.className = "tl-month";
+    block.innerHTML = `<div class="tl-month-head">${month}</div>`;
+    byMonth[month].forEach(it=>{
+      const row = document.createElement("div");
+      row.className = "tl-item";
+      row.innerHTML = `
+        <div class="tl-date">${fmtDate(it.date)}</div>
+        <div class="tl-node"><i class="${it.done?'-done':(it.overdue?'-overdue':'')}"></i></div>
+        <div class="tl-body"><div class="tt">${it.tt}</div><div class="tm">${it.meta}</div></div>
+      `;
+      block.appendChild(row);
+    });
+    root.appendChild(block);
+  });
+}
+
+/* =====================================================================
+   RENDER: REUNIONES
+   ===================================================================== */
+/* Marca en rojo los campos obligatorios vacíos y dice cuáles faltan.
+   Antes el botón no hacía nada y parecía roto. Devuelve true si falta alguno. */
+function flagMissing(container, fields, anchor){
+  container.querySelectorAll(".form-error").forEach(e=>e.remove());
+  fields.forEach(([el])=>el.classList.toggle("-missing", !el.value.trim()));
+  const missing = fields.filter(([el])=>!el.value.trim());
+  if(!missing.length) return false;
+  const msg = document.createElement("div");
+  msg.className = "form-error";
+  msg.setAttribute("role", "alert");
+  msg.textContent = "Completá " + missing.map(([,label])=>label).join(" y ") + " para guardar.";
+  anchor.insertAdjacentElement("afterend", msg);
+  missing[0][0].focus();
+  missing.forEach(([el])=>el.addEventListener("input", ()=>el.classList.remove("-missing"), {once:true}));
+  return true;
+}
+
+function renderReuniones(root){
+  root.innerHTML = `<div class="view-head"><div>
+      <h2 class="cond">Reuniones · Noctis</h2>
+      <p class="sub">Registro de cada encuentro de trabajo: fecha, quién participó, duración y qué se trató. Incluye el historial de la Etapa 1.</p>
+    </div></div>`;
+
+  const today = new Date().toISOString().slice(0,10);
+  const compose = document.createElement("div");
+  compose.className = "meeting-compose";
+  compose.innerHTML = `
+    <label class="micro" style="display:block;margin-bottom:10px">Registrar un encuentro</label>
+    <div class="field"><label class="flabel">Título</label><input type="text" id="mt-tarea" value="Encuentro I Estado del proceso de trabajo"></div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Fecha</label><input type="date" id="mt-fecha" value="${today}"></div>
+      <div class="field"><label class="flabel">Duración</label><input type="text" id="mt-duracion" value="2 hs" placeholder="Ej: 2 hs"></div>
+    </div>
+    <div class="field"><label class="flabel">Responsable / participantes</label>
+      <input type="text" id="mt-responsable" list="mt-resp-list" value="Equipo" placeholder="Ej: Equipo, Evelyna">
+      <datalist id="mt-resp-list">${Array.from(new Set(["Equipo","Evelyna","Natalia + Evelyna"].concat(allResponsables()))).map(r=>`<option value="${r}">`).join("")}</datalist>
+    </div>
+    <div class="field"><label class="flabel">Temas tratados / próximos pasos</label>
+      <textarea id="mt-resumen" placeholder="Ej: repasamos el lanzamiento de brand, quedó pendiente confirmar fecha con el cliente…"></textarea>
+    </div>
+    <button class="btn-primary" id="mt-submit">Guardar reunión</button>
+  `;
+  root.appendChild(compose);
+  compose.querySelector("#mt-submit").addEventListener("click", ()=>{
+    const fecha = compose.querySelector("#mt-fecha").value;
+    const duracion = compose.querySelector("#mt-duracion").value.trim();
+    const responsable = compose.querySelector("#mt-responsable").value.trim();
+    const resumen = compose.querySelector("#mt-resumen").value.trim();
+    if(flagMissing(compose, [[compose.querySelector("#mt-fecha"),"la fecha"],[compose.querySelector("#mt-resumen"),"los temas tratados"]], compose.querySelector("#mt-submit"))) return;
+    const tarea = compose.querySelector("#mt-tarea").value.trim();
+    addMeeting({fecha, duracion, responsable, resumen, tarea});
+    compose.querySelector("#mt-resumen").value = "";
+  });
+
+  const combined = [];
+  const live = sheetLive();
+  const hsLabel = hs => hs ? (/hs/i.test(String(hs)) ? hs : hs+" hs") : null;
+  RAW.etapa1.forEach(e=> combined.push({fecha:e.fecha, responsable:e.responsable, duracion:hsLabel(e.hs), resumen:e.tarea+(e.resultado?" — "+e.resultado:""), historical:!live, src:e}));
+  meetingsState.forEach(m=> combined.push(Object.assign({historical:false}, m)));
+  combined.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||"").localeCompare(a.createdAt||""));
+
+  const log = document.createElement("div");
+  combined.forEach(m=>{
+    const item = document.createElement("div");
+    item.className = "meeting-item" + (m.historical ? " -historical" : "");
+    item.innerHTML = `
+      ${m.historical?"":'<button class="row-delete" aria-label="Eliminar reunión">&times;</button>'}
+      <div class="mhead">
+        <span class="mdate">${fmtDateLong(m.fecha)}</span>
+        <span class="mmeta">${m.duracion?m.duracion+" · ":""}${respLabel(m.responsable)}${m.historical?" · Etapa 1":""}</span>
+      </div>
+      <div class="mbody"></div>
+    `;
+    item.querySelector(".mbody").textContent = m.resumen || "";
+    if(!m.historical){
+      item.querySelector(".row-delete").addEventListener("click", ()=>{
+        if(!confirm("¿Eliminar esta reunión?")) return;
+        if(m.src) deleteSheetMeeting(m.src); else deleteMeeting(m.id);
+      });
+    }
+    log.appendChild(item);
+  });
+  root.appendChild(log);
+}
+
+/* =====================================================================
+   RENDER: ENTREGABLES
+   ===================================================================== */
+function renderEntregables(root){
+  root.innerHTML = `<div class="view-head"><div>
+      <h2 class="cond">Entregables · Noctis</h2>
+      <p class="sub">Documentos, piezas y resultados generados por cada tarea, tomados de la columna de observaciones del plan.</p>
+    </div></div>`;
+
+  const withObs = trackedTasks().filter(t=>t.obs || taskLink(t)).sort((a,b)=> (dueDateOf(b)||"0").localeCompare(dueDateOf(a)||"0"));
+  const countEl = document.createElement("div");
+  countEl.className = "result-count";
+  countEl.textContent = withObs.length + " entregables registrados";
+  root.appendChild(countEl);
+
+  const grid = document.createElement("div");
+  grid.className = "deliv-grid";
+  root.appendChild(grid);
+
+  if(withObs.length===0){ grid.innerHTML = `<div class="empty-note">Todavía no hay entregables cargados.</div>`; return; }
+
+  withObs.forEach(t=>{
+    const estado = currentEstado(t);
+    const link = taskLink(t);
+    const row = document.createElement("div");
+    row.className = "deliv-row";
+    const nameHtml = link
+      ? `<a class="deliv-link" href="${toHref(link)}" target="_blank" rel="noopener">${t.obs || link}</a>`
+      : (t.obs || "—");
+    row.innerHTML = `
+      <div class="deliv-icon">E</div>
+      <div class="deliv-name">${nameHtml}</div>
+      <div class="deliv-task">${t.tarea}</div>
+      <div><span class="pill">${estado}</span></div>
+      <div class="col-dates"><b>${fmtDate(dueDateOf(t))}</b></div>
+    `;
+    grid.appendChild(row);
+  });
+}
+
+/* =====================================================================
+   RENDER: NOTAS
+   ===================================================================== */
+function escHtml(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* =====================================================================
+   RENDER: MÉTRICAS (hoja 03, solo lectura)
+   ===================================================================== */
+function renderMetricas(root){
+  root.innerHTML = `<div class="view-head"><div>
+      <h2 class="cond">Métricas · Noctis</h2>
+      <p class="sub">Métricas que acompañan las prioridades del trimestre (hoja 03). No reemplazan el tablero de tareas: sirven para evaluar si el trabajo está moviendo el modelo.</p>
+    </div></div>`;
+  const list = RAW.metricas || [];
+  if(!list.length){
+    root.insertAdjacentHTML("beforeend", `<div class="empty-note">Todavía no hay métricas cargadas en la hoja 03.</div>`);
+    return;
+  }
+  [1,2,3].forEach(n=>{
+    const items = list.filter(m=>String(m.prioridad||"").replace(/\D/g,"")===String(n));
+    if(!items.length) return;
+    const gh = document.createElement("div");
+    gh.className = "group-head";
+    gh.innerHTML = `<span class="swatch"></span><h3>${escHtml(FASE_META[n].label)}</h3><span class="count">${items.length} métricas</span>`;
+    root.appendChild(gh);
+    const wrap = document.createElement("div");
+    wrap.className = "metric-table";
+    wrap.innerHTML = `<table><thead><tr><th>Métrica</th><th>Qué nos dice</th><th>Cómo se mide</th><th>Frecuencia</th><th>Fuente / dato</th></tr></thead><tbody>${
+      items.map(m=>`<tr><td><b>${escHtml(m.metrica)}</b></td><td>${escHtml(m.dice)}</td><td>${escHtml(m.mide)}</td><td>${escHtml(m.frecuencia)}</td><td>${escHtml(m.fuente)}</td></tr>`).join("")
+    }</tbody></table>`;
+    root.appendChild(wrap);
+  });
+}
+
+function renderNotas(root){
+  root.innerHTML = `<div class="view-head"><div>
+      <h2 class="cond">Notas · Noctis</h2>
+      <p class="sub">Objetivo, prioridades del trimestre, y bitácora de decisiones y observaciones del equipo.</p>
+    </div></div>`;
+
+  const grid = document.createElement("div");
+  grid.className = "notes-grid";
+  root.appendChild(grid);
+
+  const left = document.createElement("div");
+  left.innerHTML = `
+    <div class="strategy-block" style="margin-bottom:0">
+      <div class="obj-head"><span class="micro">Objetivo del trimestre</span><p>${OBJETIVO}</p></div>
+      <div class="prio-list" style="grid-template-columns:1fr">
+        ${PRIORIDADES.map(p=>`<div class="prio-item" style="border-right:none;border-bottom:2px solid var(--ink)">
+            <span class="n">Prioridad ${p.n}</span><h4>${p.tt}</h4><p>${p.desc}</p>
+          </div>`).join("")}
+      </div>
+    </div>
+  `;
+  grid.appendChild(left);
+
+  const right = document.createElement("div");
+  right.innerHTML = `
+    <div class="note-compose">
+      <label class="micro" style="display:block;margin-bottom:8px">Agregar una nota</label>
+      <textarea id="note-text" placeholder="Ej: el equipo decidió priorizar la comunicación a pacientes IOMA…"></textarea>
+      <div class="row">
+        <select id="note-author">${allResponsables().map(r=>`<option value="${r}">${r}</option>`).join("")}</select>
+        <button class="btn-primary" id="note-submit">Guardar nota</button>
+      </div>
+    </div>
+    <div id="notes-log"></div>
+  `;
+  grid.appendChild(right);
+
+  right.querySelector("#note-submit").addEventListener("click", ()=>{
+    const ta = right.querySelector("#note-text");
+    const author = right.querySelector("#note-author").value;
+    const text = ta.value.trim();
+    if(flagMissing(right, [[ta,"el texto de la nota"]], right.querySelector(".note-compose .row"))) return;
+    addNote(text, author);
+    ta.value = "";
+  });
+
+  const log = right.querySelector("#notes-log");
+  if(notesState.length===0){
+    log.innerHTML = `<div class="empty-note">Todavía no hay notas. Sé el primero en dejar una.</div>`;
+  } else {
+    notesState.forEach(n=>{
+      const d = new Date(n.createdAt);
+      const item = document.createElement("div");
+      item.className = "note-item";
+      item.innerHTML = `<button class="row-delete" aria-label="Eliminar nota">&times;</button><div class="who">${n.author} <span class="when">· ${d.toLocaleDateString("es-AR")} ${d.toLocaleTimeString("es-AR",{hour:'2-digit',minute:'2-digit'})}</span></div><p></p>`;
+      item.querySelector("p").textContent = n.text;
+      item.querySelector(".row-delete").addEventListener("click", ()=>{
+        if(confirm("¿Eliminar esta nota?")) deleteNote(n.id);
+      });
+      log.appendChild(item);
+    });
+  }
+}
+
+/* =====================================================================
+   MODAL DE DETALLE
+   ===================================================================== */
+function openDetailModal(t){
+  const backdrop = document.getElementById("modal");
+  const box = document.getElementById("modal-box");
+  const estado = currentEstado(t);
+  const link = taskLink(t);
+  const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  box.innerHTML = `
+    <button class="modal-close" aria-label="Cerrar">&times;</button>
+    <h3>Editar tarea</h3>
+    <div class="field"><label class="flabel">Tarea *</label><textarea id="ed-tarea" rows="2">${esc(t.tarea)}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Área</label><input type="text" id="ed-area" value="${esc(t.area)}"></div>
+      <div class="field"><label class="flabel">Tema</label><input type="text" id="ed-tema" value="${esc(t.tema)}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Responsable</label>
+        <input type="text" id="ed-resp" list="ed-resp-list" value="${esc(t.responsable)}" placeholder="Ej: Eve">
+        <datalist id="ed-resp-list">${allResponsables().map(r=>`<option value="${esc(r)}">`).join("")}</datalist>
+      </div>
+      <div class="field"><label class="flabel">Estado</label>
+        <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}</select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Inicio</label><input type="date" id="ed-inicio" value="${t.inicio||""}"></div>
+      <div class="field"><label class="flabel">Cierre</label><input type="date" id="ed-cierre" value="${t.cierre||t.tiempo||""}"></div>
+    </div>
+    <div class="field"><label class="flabel">Prioridad</label>
+      <select id="ed-prio">${["","P1","P2","P3","Transversal"].map(o=>`<option value="${o}" ${o===(t.prioridad||"")?"selected":""}>${o||"—"}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label class="flabel">Observaciones / entregable</label><textarea id="ed-obs" rows="2">${esc(t.obs)}</textarea></div>
+    <div class="field">
+      <label class="flabel">Link del entregable (Drive, Docs, web…)</label>
+      <input type="url" id="ed-link" placeholder="https://…" value="${esc(link)}">
+      ${link?`<div style="margin-top:8px"><a class="entregable-link" href="${toHref(link)}" target="_blank" rel="noopener">Abrir link ↗</a></div>`:""}
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="ed-save">Guardar cambios</button>
+      <button class="btn-secondary" id="ed-cancel">Cancelar</button>
+      <button class="btn-danger" id="task-delete">Eliminar tarea</button>
+    </div>
+  `;
+  box.querySelector(".modal-close").onclick = closeModal;
+  box.querySelector("#ed-cancel").onclick = closeModal;
+  box.querySelector("#ed-save").onclick = ()=>{
+    if(flagMissing(box, [[box.querySelector("#ed-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
+    const val = id => box.querySelector(id).value.trim() || null;
+    const orig = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio, cierre:t.cierre||t.tiempo, obs:t.obs, link};
+    const inputs = {prioridad:"#ed-prio", tarea:"#ed-tarea", area:"#ed-area", tema:"#ed-tema", responsable:"#ed-resp", inicio:"#ed-inicio", cierre:"#ed-cierre", obs:"#ed-obs", link:"#ed-link"};
+    const fields = {};
+    Object.keys(inputs).forEach(k=>{
+      const before = orig[k]==null ? null : (String(orig[k]).trim() || null);
+      const after = val(inputs[k]);
+      if(after!==before) fields[k] = after;
+    });
+    const nuevoEstado = box.querySelector("#ed-estado").value;
+    if(nuevoEstado!==estado) fields.estado = nuevoEstado;
+    if(Object.keys(fields).length) saveTaskEdits(t, fields);
+    closeModal();
+  };
+  box.querySelector("#task-delete").onclick = ()=>{
+    if(!confirm("¿Eliminar esta tarea?")) return;
+    if(t.source==="custom") deleteCustomTask(t.id);
+    else if(sheetLive()) sheetDeleteTask(t);
+    else patchSeedOverride(t.id, {hidden:true});
+    closeModal();
+  };
+  backdrop.hidden = false;
+}
+
+function openAddTaskModal(){
+  const backdrop = document.getElementById("modal");
+  const box = document.getElementById("modal-box");
+  box.innerHTML = `
+    <button class="modal-close" aria-label="Cerrar">&times;</button>
+    <h3>Nueva tarea</h3>
+    <div class="field"><label class="flabel">Tarea *</label><input type="text" id="nt-tarea" placeholder="Ej: Armar propuesta de precios para nicho X"></div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Área</label><input type="text" id="nt-area" placeholder="Ej: Marketing"></div>
+      <div class="field"><label class="flabel">Tema</label><input type="text" id="nt-tema" placeholder="Ej: Redes Sociales"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Responsable</label>
+        <input type="text" id="nt-resp" list="nt-resp-list" placeholder="Ej: Eve">
+        <datalist id="nt-resp-list">${allResponsables().map(r=>`<option value="${r}">`).join("")}</datalist>
+      </div>
+      <div class="field"><label class="flabel">Estado</label>
+        <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}</select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Inicio</label><input type="date" id="nt-inicio"></div>
+      <div class="field"><label class="flabel">Cierre</label><input type="date" id="nt-cierre"></div>
+    </div>
+    <div class="field"><label class="flabel">Prioridad</label>
+      <select id="nt-prio">${["P1","P2","P3","Transversal"].map(o=>`<option value="${o}">${o}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label class="flabel">Observaciones (opcional)</label><input type="text" id="nt-obs"></div>
+    <div class="field"><label class="flabel">Link (opcional)</label><input type="url" id="nt-link" placeholder="https://…"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="nt-submit">Agregar tarea</button>
+      <button class="btn-secondary" id="nt-cancel">Cancelar</button>
+    </div>
+  `;
+  box.querySelector(".modal-close").onclick = closeModal;
+  box.querySelector("#nt-cancel").onclick = closeModal;
+  box.querySelector("#nt-submit").onclick = ()=>{
+    const tarea = box.querySelector("#nt-tarea").value.trim();
+    if(flagMissing(box, [[box.querySelector("#nt-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
+    addCustomTask({
+      tarea,
+      prioridad: box.querySelector("#nt-prio").value || null,
+      area: box.querySelector("#nt-area").value.trim() || null,
+      tema: box.querySelector("#nt-tema").value.trim() || null,
+      responsable: box.querySelector("#nt-resp").value.trim() || null,
+      obs: box.querySelector("#nt-obs").value.trim() || null,
+      inicio: box.querySelector("#nt-inicio").value || null,
+      cierre: box.querySelector("#nt-cierre").value || null,
+      link: box.querySelector("#nt-link").value.trim() || null,
+      estado: box.querySelector("#nt-estado").value,
+    });
+    closeModal();
+  };
+  document.getElementById("modal").hidden = false;
+}
+function closeModal(){ document.getElementById("modal").hidden = true; }
+document.getElementById("modal").addEventListener("click", (e)=>{ if(e.target.id==="modal") closeModal(); });
+document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeModal(); });
+
+/* =====================================================================
+   EXPORTAR A EXCEL (backup .xlsx con el estado actual)
+   ===================================================================== */
+function buildExportRows(){
+  const planRows = trackedTasks().map(t=>{
+    const estado = currentEstado(t);
+    return {
+      "Fase": FASE_META[t.fase] ? FASE_META[t.fase].label : "",
+      "Área": t.area || "",
+      "Tema": t.tema || "",
+      "Tarea": t.tarea,
+      "Responsable": respLabel(t.responsable),
+      "Inicio": t.inicio || "",
+      "Cierre": t.cierre || t.tiempo || "",
+      "Estado": estado,
+      "Prioridad": urgencia(t, estado),
+      "Atrasada": isOverdue(t, estado) ? "Sí" : "No",
+      "Link": taskLink(t) || "",
+      "Entregable / Obs.": t.obs || "",
+    };
+  });
+  const etapa1Rows = RAW.etapa1.map(e=>({
+    "Fecha": e.fecha, "Tarea": e.tarea, "Responsable": e.responsable, "Estado": e.estado, "Resultado": e.resultado || "",
+  }));
+  const reunionRows = (meetingsState.length ? meetingsState : [{}]).map(m=>({
+    "Fecha": m.fecha || "", "Duración": m.duracion || "", "Responsable": m.responsable || "", "Resumen": m.resumen || "",
+  }));
+  const noteRows = (notesState.length ? notesState : [{}]).map(n=>({
+    "Fecha": n.createdAt ? new Date(n.createdAt).toLocaleString("es-AR") : "", "Autor": n.author || "", "Nota": n.text || "",
+  }));
+  return {planRows, etapa1Rows, reunionRows, noteRows};
+}
+
+async function exportToExcel(btn){
+  if(typeof XLSX === "undefined"){ alert("El generador de Excel todavía está cargando — probá de nuevo en unos segundos."); return; }
+  const original = btn.textContent;
+  btn.textContent = "Generando…"; btn.disabled = true;
+  try{
+    const {planRows, etapa1Rows, reunionRows, noteRows} = buildExportRows();
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(planRows), "Plan de trabajo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(etapa1Rows), "Etapa 1 - Diagnostico");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reunionRows), "Reuniones");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(noteRows), "Notas");
+    const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+    const blob = new Blob([wbout], {type:"application/octet-stream"});
+    const filename = "Noctis - Plan de trabajo (backup " + new Date().toISOString().slice(0,10) + ").xlsx";
+    const downloads = (window.claude && typeof window.claude.use==="function") ? await window.claude.use("downloads") : null;
+    if(!downloads){ alert("La descarga no está disponible en esta vista."); return; }
+    await downloads.save({filename, data:blob});
+  }catch(e){
+    if(!e || e.code!=="declined"){ console.error(e); alert("No se pudo generar el archivo. Probá de nuevo."); }
+  }finally{
+    btn.textContent = original; btn.disabled = false;
+  }
+}
+document.getElementById("export-btn").addEventListener("click", (e)=> exportToExcel(e.currentTarget));
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+render();
+initStore();
+</script>
+
+
+</body>
+</html>
