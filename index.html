@@ -378,7 +378,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
      ============================================================ -->
 <script>
   window.WEBER_GAS_CONFIG = {
-    url: "",
+    url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
   };
 </script>
@@ -599,7 +599,7 @@ async function sheetWrite(action, payload){
   sheetPending++;
   const job = sheetQueue.then(()=>gasWrite_(action, payload)).catch(e=>{
     console.error(e);
-    alert("No se pudo guardar en el Sheet: " + e.message);
+    if(!e.soft) alert("No se pudo guardar en el Sheet: " + e.message);
   });
   sheetQueue = job;
   await job;
@@ -755,10 +755,20 @@ function gasConfigured(){
 
 async function gasRead_(){
   const sep = GAS_CFG.url.indexOf("?")>=0 ? "&" : "?";
-  const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token));
-  const json = await res.json();
-  if(!json.ok) throw new Error(json.error || "error leyendo el Sheet");
-  return json;
+  // Google a veces responde con una página de error pasajera: se reintenta.
+  let lastErr = null;
+  for(let intento=0; intento<4; intento++){
+    try{
+      const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token));
+      const json = await res.json();
+      if(!json.ok) throw new Error(json.error || "error leyendo el Sheet");
+      return json;
+    }catch(e){
+      lastErr = e;
+      await new Promise(r=>setTimeout(r, 1500*(intento+1)));
+    }
+  }
+  throw lastErr;
 }
 
 /* Vuelve a leer el Sheet después de guardar, para quedar igual que la hoja. */
@@ -779,7 +789,15 @@ async function gasWrite_(action, payload){
     method: "POST",
     body: JSON.stringify({token: GAS_CFG.token, action: action, payload: payload})
   });
-  const json = await res.json();
+  // A veces Google devuelve una página de error aunque el cambio se guardó:
+  // se marca como "soft" para no mostrar un aviso falso y releer el Sheet.
+  let json;
+  try{ json = await res.json(); }
+  catch(e){
+    const err = new Error("respuesta no válida de Google en "+action);
+    err.soft = true;
+    throw err;
+  }
   if(!json.ok) throw new Error(json.error || ("error en "+action));
   return json.result;
 }
