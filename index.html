@@ -286,6 +286,8 @@ a{color:inherit}
 @media (max-width:520px){.field-row{grid-template-columns:1fr}}
 .modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
 .modal-actions button{white-space:nowrap}
+.view-head .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+a.btn-link{text-decoration:none;display:inline-flex;align-items:center}
 .metric-table{overflow-x:auto;margin:0 0 26px}
 .metric-table table{width:100%;min-width:720px;border-collapse:collapse;font-size:13px;background:var(--card)}
 .metric-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:2px solid var(--ink);padding:8px 10px}
@@ -484,6 +486,8 @@ function toHref(s){ const v=s.trim(); return /^https?:\/\//i.test(v) ? v : "http
 /* Cada tarea admite hasta 3 links. Se guardan juntos en el campo "link",
    uno por línea, así la hoja y el backend no necesitan columnas nuevas. */
 const MAX_LINKS = 3;
+/* Carpeta de Drive de trabajo del cliente (botón arriba del Plan de trabajo). */
+const DRIVE_URL = "https://drive.google.com/drive/u/0/folders/1pUZKTnVnUWBFftQfWGKMyuoEvh9O3YwV";
 function parseLinks(s){ return String(s||"").split(/\s*\n\s*|\s+\|\s+/).map(x=>x.trim()).filter(Boolean).slice(0, MAX_LINKS); }
 function joinLinks(arr){ const v = (arr||[]).map(x=>String(x||"").trim()).filter(Boolean).slice(0, MAX_LINKS); return v.length ? v.join("\n") : null; }
 function linkLabel(url){
@@ -1396,7 +1400,7 @@ function renderPlan(root){
         <h2 class="cond">Plan de trabajo · Noctis</h2>
         <p class="sub">Lo que falta hacer o está en proceso, organizado por prioridad del trimestre. Tocá cualquier tarea para editarla. Al marcar una tarea como Completado pasa a Finalizadas. Sumá lo que se agregue en cada encuentro con "+ Nueva tarea".</p>
       </div>
-      <div class="actions"><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
+      <div class="actions"><a class="btn-secondary btn-link" href="${DRIVE_URL}" target="_blank" rel="noopener">Drive de trabajo ↗</a><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
     </div>`;
   root.querySelector("#add-task-btn").addEventListener("click", openAddTaskModal);
   renderTaskGroups(root, trackedTasks().filter(t=>currentEstado(t)!=="Completado"), "No hay tareas pendientes que coincidan con estos filtros.");
