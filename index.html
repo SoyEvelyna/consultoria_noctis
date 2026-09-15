@@ -1792,7 +1792,7 @@ function openDetailModal(t){
     else patchSeedOverride(t.id, {hidden:true});
     closeModal();
   };
-  backdrop.hidden = false;
+  abrirModal();
 }
 
 function openAddTaskModal(prefill){
@@ -1865,11 +1865,38 @@ function openAddTaskModal(prefill){
     });
     closeModal();
   };
-  document.getElementById("modal").hidden = false;
+  abrirModal();
 }
 function closeModal(){ document.getElementById("modal").hidden = true; }
-document.getElementById("modal").addEventListener("click", (e)=>{ if(e.target.id==="modal") closeModal(); });
-document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") closeModal(); });
+
+/* La ventana ya no se cierra sola mientras se edita: un clic que empieza en un
+   campo y termina afuera, o Escape para cerrar un desplegable o una fecha, no
+   la cierran. Si se cierra desde afuera con cambios sin guardar, pregunta. */
+let modalInicial = "";
+let clicEmpezoEnFondo = false;
+function modalSnapshot(){
+  const box = document.getElementById("modal-box");
+  return [...box.querySelectorAll("input, select, textarea")].map(el=>el.value).join("\u0001");
+}
+function abrirModal(){
+  document.getElementById("modal").hidden = false;
+  modalInicial = modalSnapshot();
+}
+function cerrarSiNoHayCambios(){
+  if(document.getElementById("modal").hidden) return;
+  if(modalSnapshot()!==modalInicial && !confirm("Tenés cambios sin guardar. ¿Cerrar igual?")) return;
+  closeModal();
+}
+document.getElementById("modal").addEventListener("mousedown", (e)=>{ clicEmpezoEnFondo = e.target.id==="modal"; });
+document.getElementById("modal").addEventListener("click", (e)=>{
+  if(e.target.id==="modal" && clicEmpezoEnFondo) cerrarSiNoHayCambios();
+  clicEmpezoEnFondo = false;
+});
+document.addEventListener("keydown", (e)=>{
+  if(e.key!=="Escape") return;
+  if(e.target && /^(SELECT|INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  cerrarSiNoHayCambios();
+});
 
 /* =====================================================================
    EXPORTAR A EXCEL (backup .xlsx con el estado actual)
