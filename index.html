@@ -445,6 +445,34 @@ function allAreas(){
   TASKS.forEach(t=>{ if(t.area && t.source!=="etapa1") set.add(t.area); });
   return Array.from(set);
 }
+/* Responsable: además de las opciones de la Hoja, permite sumar un nombre
+   nuevo desde la web; se agrega también al desplegable de la hoja 02. */
+const NUEVO_RESP = "__nuevo__";
+function respSelectHtml(current){
+  return optionsHtml(allResponsables(), current, "Sin asignar") + `<option value="${NUEVO_RESP}">+ Agregar responsable…</option>`;
+}
+function wireRespSelect(sel){
+  if(!sel) return;
+  let previo = sel.value;
+  sel.addEventListener("change", ()=>{
+    if(sel.value!==NUEVO_RESP){ previo = sel.value; return; }
+    const nombre = (prompt("Nombre del nuevo responsable:") || "").trim();
+    if(!nombre){ sel.value = previo; return; }
+    const enHoja = (SHEET_OPCIONES.responsable || []).some(v=>v.toLowerCase()===nombre.toLowerCase());
+    if(!enHoja){
+      SHEET_OPCIONES.responsable = (SHEET_OPCIONES.responsable || []).concat([nombre]);
+      if(sheetMode()) sheetWrite("addOpcion", {campo:"responsable", valor:nombre});
+    }
+    if(![...sel.options].some(o=>o.value===nombre)){
+      const opt = document.createElement("option");
+      opt.value = nombre; opt.textContent = nombre;
+      sel.insertBefore(opt, sel.querySelector(`option[value="${NUEVO_RESP}"]`));
+    }
+    sel.value = nombre;
+    previo = nombre;
+  });
+}
+
 /* Opciones de un <select>; si el valor actual no está en la lista, se agrega. */
 function optionsHtml(list, current, emptyLabel){
   const vals = list.slice();
@@ -1702,7 +1730,7 @@ function openDetailModal(t){
     </div>
     <div class="field-row">
       <div class="field"><label class="flabel">Responsable</label>
-        <select id="ed-resp">${optionsHtml(allResponsables(), t.responsable, "Sin asignar")}</select>
+        <select id="ed-resp">${respSelectHtml(t.responsable)}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}</select>
@@ -1730,6 +1758,7 @@ function openDetailModal(t){
   `;
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#ed-cancel").onclick = closeModal;
+  wireRespSelect(box.querySelector("#ed-resp"));
   /* Duplicar: abre "Nueva tarea" con los datos de esta, para editar la copia antes de guardarla. */
   box.querySelector("#task-duplicate").onclick = ()=>{
     openAddTaskModal({
@@ -1781,7 +1810,7 @@ function openAddTaskModal(prefill){
     </div>
     <div class="field-row">
       <div class="field"><label class="flabel">Responsable</label>
-        <select id="nt-resp">${optionsHtml(allResponsables(), copia ? copia.responsable : "", "Sin asignar")}</select>
+        <select id="nt-resp">${respSelectHtml(copia ? copia.responsable : "")}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}</select>
@@ -1818,6 +1847,7 @@ function openAddTaskModal(prefill){
   }
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#nt-cancel").onclick = closeModal;
+  wireRespSelect(box.querySelector("#nt-resp"));
   box.querySelector("#nt-submit").onclick = ()=>{
     const tarea = box.querySelector("#nt-tarea").value.trim();
     if(flagMissing(box, [[box.querySelector("#nt-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;

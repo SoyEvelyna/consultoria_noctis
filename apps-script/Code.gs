@@ -108,6 +108,7 @@ function handleAction_(action, p) {
     case "addMeetingSheet": return addMeetingSheet_(p);
     case "deleteMeetingSheet": return deleteMeetingSheet_(p);
     case "migrarLinks": return migrarLinks_();
+    case "addOpcion": return addOpcion_(p);
     default: throw new Error("acción POST no soportada: " + action);
   }
 }
@@ -688,4 +689,25 @@ function migrarLinks_() {
     log.push(id + " -> link en OBSERVACIONES");
   });
   return log;
+}
+
+/* Suma un nombre al desplegable de RESPONSABLE de 02 (toda la columna debajo del
+   encabezado), para poder asignarlo desde la web. Si ya estaba, no cambia nada. */
+function addOpcion_(p) {
+  var valor = String(p.valor || "").trim();
+  if (!valor) throw new Error("Falta el nombre");
+  if (p.campo !== "responsable") throw new Error("Campo no soportado: " + p.campo);
+  var L = procesoLayout_();
+  if (L.cols.responsable === undefined) throw new Error("No encuentro la columna RESPONSABLE en '" + SHEET_PROCESO + "'");
+  var col = L.cols.responsable + 1;
+  var firstRow = L.header + 2;
+  var sample = L.sheet.getRange(L.tasks.length ? L.tasks[0].row : firstRow, col);
+  var actuales = dropdownValues_(sample);
+  if (actuales.map(norm_).indexOf(norm_(valor)) !== -1) return { valor: valor, yaEstaba: true, opciones: actuales };
+  var nuevas = actuales.concat([valor]);
+  var dv = sample.getDataValidation();
+  var builder = dv ? dv.copy() : SpreadsheetApp.newDataValidation().setAllowInvalid(false);
+  var rule = builder.requireValueInList(nuevas, true).build();
+  L.sheet.getRange(firstRow, col, L.sheet.getMaxRows() - firstRow + 1, 1).setDataValidation(rule);
+  return { valor: valor, opciones: nuevas };
 }
