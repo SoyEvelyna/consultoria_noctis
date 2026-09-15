@@ -44,12 +44,13 @@ SHEET_SCHEMAS[SHEET_NOTES] = ["id", "text", "author", "createdAt"];
 /* Valores posibles en la hoja para cada estado de la web (se usa el primero
    que exista en el desplegable de la celda). */
 var ESTADO_CANDIDATOS = {
-  "Por hacer": ["Pendiente", "Por hacer", "Sin iniciar"],
-  "En proceso": ["En proceso", "En curso", "Iniciada"],
-  "En revisión": ["Revisar", "En revisión", "Revisión"],
-  "Completado": ["Finalizada", "Finalizado", "Completada", "Completado"],
-  "Bloqueado": ["Bloqueada", "Bloqueado", "Frenada"]
+  "Por hacer": ["Atrasada", "Pendiente"],
+  "En proceso": ["Proceso", "En proceso"],
+  "En revisión": ["Revisar", "En revisión"],
+  "Testear": ["Testear"],
+  "Completado": ["Finalizada", "Finalizado"]
 };
+var ESTADOS_SHEET = ["Atrasada", "Proceso", "Revisar", "Testear", "Finalizada"];
 
 /** EJECUTAR A MANO UNA VEZ (opcional): crea las pestañas WebApp si faltan. */
 function crearPestanasWebApp() {
@@ -109,6 +110,7 @@ function handleAction_(action, p) {
     case "deleteMeetingSheet": return deleteMeetingSheet_(p);
     case "migrarLinks": return migrarLinks_();
     case "addOpcion": return addOpcion_(p);
+    case "migrarEstados": return migrarEstados_();
     default: throw new Error("acción POST no soportada: " + action);
   }
 }
@@ -710,4 +712,38 @@ function addOpcion_(p) {
   var rule = builder.requireValueInList(nuevas, true).build();
   L.sheet.getRange(firstRow, col, L.sheet.getMaxRows() - firstRow + 1, 1).setDataValidation(rule);
   return { valor: valor, opciones: nuevas };
+}
+
+/* Estado viejo de la hoja -> estado nuevo (Atrasada, Proceso, Revisar, Testear, Finalizada). */
+function estadoNuevo_(v) {
+  var s = String(v || "").trim().toLowerCase();
+  if (s.indexOf("final") === 0) return "Finalizada";
+  if (s.indexOf("en proceso") === 0 || s.indexOf("proceso") === 0 || s.indexOf("actualiz") === 0) return "Proceso";
+  if (s.indexOf("revis") === 0 || s.indexOf("propuesta") === 0) return "Revisar";
+  if (s.indexOf("test") === 0) return "Testear";
+  return "Atrasada";
+}
+
+/* Una vez: deja el desplegable de ESTADO de 02 con las 5 opciones nuevas (toda la
+   columna debajo del encabezado) y pasa cada tarea a su estado nuevo. */
+function migrarEstados_() {
+  var L = procesoLayout_();
+  if (L.cols.estado === undefined) throw new Error("No encuentro la columna ESTADO en '" + SHEET_PROCESO + "'");
+  var col = L.cols.estado + 1;
+  var firstRow = L.header + 2;
+  var sample = L.sheet.getRange(L.tasks.length ? L.tasks[0].row : firstRow, col);
+  var dv = sample.getDataValidation();
+  var builder = dv ? dv.copy() : SpreadsheetApp.newDataValidation().setAllowInvalid(false);
+  L.sheet.getRange(firstRow, col, L.sheet.getMaxRows() - firstRow + 1, 1)
+    .setDataValidation(builder.requireValueInList(ESTADOS_SHEET, true).build());
+  var cambios = {};
+  L.tasks.forEach(function (t) {
+    var cell = L.sheet.getRange(t.row, col);
+    var antes = String(cell.getValue() || "");
+    var despues = estadoNuevo_(antes);
+    if (antes !== despues) cell.setValue(despues);
+    var k = (antes || "(vacío)") + " -> " + despues;
+    cambios[k] = (cambios[k] || 0) + 1;
+  });
+  return cambios;
 }

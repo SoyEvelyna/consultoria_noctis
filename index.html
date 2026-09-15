@@ -188,11 +188,12 @@ a{color:inherit}
   background-repeat:no-repeat;background-position:right 8px center;background-size:9px 6px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
 }
-.st-Por-hacer{background:var(--paper);color:var(--ink)}
-.st-En-proceso{background:var(--sky);color:var(--ink)}
-.st-En-revisión{background:var(--chrome);color:var(--ink)}
-.st-Completado{background:var(--signal);color:var(--ink)}
-.st-Bloqueado{background:var(--hazard);color:var(--paper)}
+/* Estados: Atrasada rojo · Proceso amarillo · Revisar celeste · Testear violeta · Finalizada verde */
+.st-Por-hacer{background:#E5484D;color:#fff;border-color:#B9282D}
+.st-En-proceso{background:#F5C518;color:#212121;border-color:#C89E00}
+.st-En-revision{background:#8FD3F4;color:#212121;border-color:#4BA9D6}
+.st-Testear{background:#9B6BDF;color:#fff;border-color:#7447B8}
+.st-Completado{background:#3DBE6A;color:#fff;border-color:#23914A}
 .obs-btn{
   width:30px;height:30px;border:2px solid var(--ink);background:var(--card);cursor:pointer;
   display:grid;place-items:center;font-size:13px;font-weight:700;flex:none;
@@ -416,11 +417,11 @@ function normEstado(raw){
   if(!raw) return "Por hacer";
   const s = raw.trim().toLowerCase();
   if(s.startsWith("final")) return "Completado";
-  if(s.startsWith("en proceso")) return "En proceso";
+  if(s.startsWith("en proceso") || s.startsWith("proceso")) return "En proceso";
   if(s.startsWith("actualiz")) return "En proceso";
   if(s.startsWith("revis")) return "En revisión";
   if(s.startsWith("propuesta")) return "En revisión";
-  if(s.startsWith("bloq")) return "Bloqueado";
+  if(s.startsWith("test")) return "Testear";
   return "Por hacer";
 }
 function classifyFase(t){
@@ -513,7 +514,6 @@ function isOverdue(t, estado){
 }
 function urgencia(t, estado){
   if(estado==="Completado") return "Baja";
-  if(estado==="Bloqueado") return "Alta";
   const due = dueDateOf(t);
   if(!due) return "Baja";
   const days = Math.round((new Date(due+"T00:00:00") - todayMidnight())/86400000);
@@ -646,7 +646,7 @@ async function patchCustomTask(taskId, patch){
 /* Con el Sheet conectado, las tareas se escriben directo en su fila de "02"
    y las reuniones en la tabla de "01". Se muestra el cambio al instante,
    se guarda (en orden) y al terminar se vuelve a leer el Sheet. */
-const ESTADO_A_SHEET = {"Por hacer":"Pendiente","En proceso":"En proceso","En revisión":"Revisar","Completado":"Finalizada","Bloqueado":"Bloqueado"};
+const ESTADO_A_SHEET = {"Por hacer":"Atrasada","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
 function sheetLive(){ return dbMode==="live" && !!gasData; }
 /* Con el Sheet configurado, las ediciones siempre van al Sheet: se muestran al
    instante y se guardan en segundo plano, aunque la conexión esté lenta. */
@@ -1123,7 +1123,11 @@ const VIEWS = [
   {id:"metricas", label:"Métricas"},
   {id:"notas", label:"Notas"},
 ];
-const ESTADOS = ["Por hacer","En proceso","En revisión","Completado","Bloqueado"];
+const ESTADOS = ["Por hacer","En proceso","En revisión","Testear","Completado"];
+/* Nombre que se ve (y que se guarda en el Sheet) para cada estado interno. */
+const ESTADO_LABEL = {"Por hacer":"Atrasada","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
+function estadoLabel(e){ return ESTADO_LABEL[e] || e; }
+function estadoClass(e){ return "st-" + String(e||"").replace(/\s+/g,"-").replace("ó","o"); }
 const RESPONSABLES = ["Eve","Fer","Nati","Evelyna","Equipo"];
 /* Opciones de los desplegables de la Hoja (llegan con la lectura en vivo). */
 let SHEET_OPCIONES = {responsable:[], area:[], responsableReuniones:[]};
@@ -1227,10 +1231,10 @@ function renderDashboard(root){
     <div class="kpi-grid">
       <div class="kpi -accent"><span class="num mono-num">${avance}%</span><span class="lbl">Avance del proyecto</span></div>
       <div class="kpi"><span class="num mono-num">${total}</span><span class="lbl">Tareas totales</span></div>
-      <div class="kpi"><span class="num mono-num">${completado}</span><span class="lbl">Completadas</span></div>
-      <div class="kpi"><span class="num mono-num">${enProceso}</span><span class="lbl">En proceso</span></div>
-      <div class="kpi"><span class="num mono-num">${porHacer+enRevision}</span><span class="lbl">Pendientes</span></div>
-      <div class="kpi ${atrasadas>0?'-warn':''}"><span class="num mono-num">${atrasadas}</span><span class="lbl">Atrasadas</span></div>
+      <div class="kpi"><span class="num mono-num">${completado}</span><span class="lbl">Finalizadas</span></div>
+      <div class="kpi"><span class="num mono-num">${enProceso}</span><span class="lbl">Proceso</span></div>
+      <div class="kpi"><span class="num mono-num">${porHacer}</span><span class="lbl">Atrasadas</span></div>
+      <div class="kpi ${atrasadas>0?'-warn':''}"><span class="num mono-num">${atrasadas}</span><span class="lbl">Vencidas</span></div>
     </div>
 
     <div class="fase-row" id="fase-row"></div>
@@ -1307,7 +1311,7 @@ function renderFilterBar(root, opts){
     <div class="fgroup"><label>Estado</label>
       <select data-f="estado">
         <option value="">Todos</option>
-        ${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}
+        ${ESTADOS.map(e=>`<option value="${e}">${estadoLabel(e)}</option>`).join("")}
       </select>
     </div>
     <div class="fgroup"><label>Responsable</label>
@@ -1342,11 +1346,11 @@ function taskRow(t){
   const overdue = isOverdue(t, estado);
   const link = taskLink(t);
   row.className = "task-row" + (overdue ? " -overdue" : "");
-  const stClass = "st-"+estado.replace(/\s+/g,"-").replace("ó","o");
+  const stClass = estadoClass(estado);
   row.innerHTML = `
     <div class="col-area"><span class="tk-tema">${t.area || "—"}</span></div>
     <div class="col-tema"><span class="tk-tema">${t.tema || "—"}${t.subfase?" · "+t.subfase:""}</span></div>
-    <div class="col-tarea"><span class="tk-tarea">${t.tarea}${overdue?'<span class="tk-flags"><span class="flag">Atrasada</span></span>':''}${t.source==="custom"&&!t.edited?'<span class="custom-tag">Nueva</span>':''}${link?' 🔗':''}</span></div>
+    <div class="col-tarea"><span class="tk-tarea">${t.tarea}${overdue?'<span class="tk-flags"><span class="flag">Vencida</span></span>':''}${t.source==="custom"&&!t.edited?'<span class="custom-tag">Nueva</span>':''}${link?' 🔗':''}</span></div>
     <div class="col-resp"><span class="tk-resp">${respLabel(t.responsable)}</span></div>
     <div class="col-dates">
       <span><b>Inicio</b> ${fmtDate(t.inicio)}</span><br>
@@ -1354,7 +1358,7 @@ function taskRow(t){
     </div>
     <div class="col-status">
       <select class="status-select ${stClass}" data-task="${t.id}">
-        ${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}
+        ${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${estadoLabel(e)}</option>`).join("")}
       </select>
     </div>
     <div class="col-observ"><span class="tk-obs">${t.obs || "—"}</span></div>
@@ -1460,7 +1464,7 @@ function renderTimeline(root){
     const d = t.cierre || t.inicio;
     if(!d) return;
     const estado = currentEstado(t);
-    items.push({date:d, tt:t.tarea, meta:(t.tema||t.area)+" · "+respLabel(t.responsable)+" · "+estado, done:estado==="Completado", overdue:isOverdue(t,estado)});
+    items.push({date:d, tt:t.tarea, meta:(t.tema||t.area)+" · "+respLabel(t.responsable)+" · "+estadoLabel(estado), done:estado==="Completado", overdue:isOverdue(t,estado)});
   });
   items.sort((a,b)=> a.date.localeCompare(b.date));
 
@@ -1610,7 +1614,7 @@ function renderEntregables(root){
       <div class="deliv-icon">E</div>
       <div class="deliv-name">${nameHtml}</div>
       <div class="deliv-task">${t.tarea}</div>
-      <div><span class="pill">${estado}</span></div>
+      <div><span class="pill ${estadoClass(estado)}">${estadoLabel(estado)}</span></div>
       <div class="col-dates"><b>${fmtDate(dueDateOf(t))}</b></div>
     `;
     grid.appendChild(row);
@@ -1737,7 +1741,7 @@ function openDetailModal(t){
         <select id="ed-resp">${respSelectHtml(t.responsable)}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
-        <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}</select>
+        <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${estadoLabel(e)}</option>`).join("")}</select>
       </div>
     </div>
     <div class="field-row">
@@ -1817,7 +1821,7 @@ function openAddTaskModal(prefill){
         <select id="nt-resp">${respSelectHtml(copia ? copia.responsable : "")}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
-        <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}</select>
+        <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${estadoLabel(e)}</option>`).join("")}</select>
       </div>
     </div>
     <div class="field-row">
@@ -1916,7 +1920,7 @@ function buildExportRows(){
       "Responsable": respLabel(t.responsable),
       "Inicio": t.inicio || "",
       "Cierre": t.cierre || t.tiempo || "",
-      "Estado": estado,
+      "Estado": estadoLabel(estado),
       "Prioridad": urgencia(t, estado),
       "Atrasada": isOverdue(t, estado) ? "Sí" : "No",
       "Links": parseLinks(taskLink(t)).join(" | "),
