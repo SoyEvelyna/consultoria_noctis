@@ -44,13 +44,13 @@ SHEET_SCHEMAS[SHEET_NOTES] = ["id", "text", "author", "createdAt"];
 /* Valores posibles en la hoja para cada estado de la web (se usa el primero
    que exista en el desplegable de la celda). */
 var ESTADO_CANDIDATOS = {
-  "Por hacer": ["Atrasada", "Pendiente"],
+  "Por hacer": ["Pendiente", "Atrasada"],
   "En proceso": ["Proceso", "En proceso"],
   "En revisión": ["Revisar", "En revisión"],
   "Testear": ["Testear"],
   "Completado": ["Finalizada", "Finalizado"]
 };
-var ESTADOS_SHEET = ["Atrasada", "Proceso", "Revisar", "Testear", "Finalizada"];
+var ESTADOS_SHEET = ["Pendiente", "Proceso", "Revisar", "Testear", "Finalizada"];
 
 /** EJECUTAR A MANO UNA VEZ (opcional): crea las pestañas WebApp si faltan. */
 function crearPestanasWebApp() {
@@ -714,14 +714,14 @@ function addOpcion_(p) {
   return { valor: valor, opciones: nuevas };
 }
 
-/* Estado viejo de la hoja -> estado nuevo (Atrasada, Proceso, Revisar, Testear, Finalizada). */
+/* Estado viejo de la hoja -> estado nuevo (Pendiente, Proceso, Revisar, Testear, Finalizada). */
 function estadoNuevo_(v) {
   var s = String(v || "").trim().toLowerCase();
   if (s.indexOf("final") === 0) return "Finalizada";
   if (s.indexOf("en proceso") === 0 || s.indexOf("proceso") === 0 || s.indexOf("actualiz") === 0) return "Proceso";
   if (s.indexOf("revis") === 0 || s.indexOf("propuesta") === 0) return "Revisar";
   if (s.indexOf("test") === 0) return "Testear";
-  return "Atrasada";
+  return "Pendiente";
 }
 
 /* Una vez: deja el desplegable de ESTADO de 02 con las 5 opciones nuevas (toda la

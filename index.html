@@ -188,7 +188,7 @@ a{color:inherit}
   background-repeat:no-repeat;background-position:right 8px center;background-size:9px 6px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
 }
-/* Estados: Atrasada rojo · Proceso amarillo · Revisar celeste · Testear violeta · Finalizada verde */
+/* Estados: Pendiente rojo · Proceso amarillo · Revisar celeste · Testear violeta · Finalizada verde */
 .st-Por-hacer{background:#E5484D;color:#fff;border-color:#B9282D}
 .st-En-proceso{background:#F5C518;color:#212121;border-color:#C89E00}
 .st-En-revision{background:#8FD3F4;color:#212121;border-color:#4BA9D6}
@@ -646,7 +646,7 @@ async function patchCustomTask(taskId, patch){
 /* Con el Sheet conectado, las tareas se escriben directo en su fila de "02"
    y las reuniones en la tabla de "01". Se muestra el cambio al instante,
    se guarda (en orden) y al terminar se vuelve a leer el Sheet. */
-const ESTADO_A_SHEET = {"Por hacer":"Atrasada","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
+const ESTADO_A_SHEET = {"Por hacer":"Pendiente","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
 function sheetLive(){ return dbMode==="live" && !!gasData; }
 /* Con el Sheet configurado, las ediciones siempre van al Sheet: se muestran al
    instante y se guardan en segundo plano, aunque la conexión esté lenta. */
@@ -1125,7 +1125,7 @@ const VIEWS = [
 ];
 const ESTADOS = ["Por hacer","En proceso","En revisión","Testear","Completado"];
 /* Nombre que se ve (y que se guarda en el Sheet) para cada estado interno. */
-const ESTADO_LABEL = {"Por hacer":"Atrasada","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
+const ESTADO_LABEL = {"Por hacer":"Pendiente","En proceso":"Proceso","En revisión":"Revisar","Testear":"Testear","Completado":"Finalizada"};
 function estadoLabel(e){ return ESTADO_LABEL[e] || e; }
 function estadoClass(e){ return "st-" + String(e||"").replace(/\s+/g,"-").replace("ó","o"); }
 const RESPONSABLES = ["Eve","Fer","Nati","Evelyna","Equipo"];
@@ -1233,7 +1233,7 @@ function renderDashboard(root){
       <div class="kpi"><span class="num mono-num">${total}</span><span class="lbl">Tareas totales</span></div>
       <div class="kpi"><span class="num mono-num">${completado}</span><span class="lbl">Finalizadas</span></div>
       <div class="kpi"><span class="num mono-num">${enProceso}</span><span class="lbl">Proceso</span></div>
-      <div class="kpi"><span class="num mono-num">${porHacer}</span><span class="lbl">Atrasadas</span></div>
+      <div class="kpi"><span class="num mono-num">${porHacer}</span><span class="lbl">Pendientes</span></div>
       <div class="kpi ${atrasadas>0?'-warn':''}"><span class="num mono-num">${atrasadas}</span><span class="lbl">Vencidas</span></div>
     </div>
 
@@ -1922,7 +1922,7 @@ function buildExportRows(){
       "Cierre": t.cierre || t.tiempo || "",
       "Estado": estadoLabel(estado),
       "Prioridad": urgencia(t, estado),
-      "Atrasada": isOverdue(t, estado) ? "Sí" : "No",
+      "Vencida": isOverdue(t, estado) ? "Sí" : "No",
       "Links": parseLinks(taskLink(t)).join(" | "),
       "Entregable / Obs.": t.obs || "",
     };
