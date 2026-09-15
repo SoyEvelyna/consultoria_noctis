@@ -14,8 +14,9 @@
  *   OBSERVACIONES), así que se pueden mover sin romper la web.
  * - Las celdas con desplegable solo reciben valores de su lista: si un valor
  *   no entra, no se pierde — queda anotado en Observaciones.
- * - Lo que no tiene columna (link de la tarea, notas) va a "WebApp - Overrides"
- *   y "WebApp - Notas", que el script crea si no existen.
+ * - El link del entregable se guarda como texto enlazado en OBSERVACIONES de 02.
+ *   Las notas van a "WebApp - Notas" ("WebApp - Overrides" solo guarda tareas
+ *   ocultas y links viejos), pestañas que el script crea si no existen.
  * - Autenticación: token compartido (ACCESS_TOKEN), el mismo que usa la web.
  */
 
@@ -103,6 +104,7 @@ function handleAction_(action, p) {
     case "deleteTask": return deleteTask_(p.id);
     case "addMeetingSheet": return addMeetingSheet_(p);
     case "deleteMeetingSheet": return deleteMeetingSheet_(p);
+    case "migrarLinks": return migrarLinks_();
     default: throw new Error("acción POST no soportada: " + action);
   }
 }
@@ -291,11 +293,9 @@ function migrateOverride_(oldId, newId, fields) {
   var cols = SHEET_SCHEMAS[SHEET_OVERRIDES];
   var rowIdx = findRowIndexById_(sheet, oldId);
   if (rowIdx !== -1) {
-    var link = sheet.getRange(rowIdx, cols.indexOf("link") + 1).getValue();
-    if (fields.link !== undefined) link = fields.link || "";
+    // El link ahora vive en OBSERVACIONES de 02: si se editó, se limpia del override.
+    var link = fields.link !== undefined ? "" : sheet.getRange(rowIdx, cols.indexOf("link") + 1).getValue();
     sheet.getRange(rowIdx, 1, 1, cols.length).setValues([[newId, "", link, "", "", false, nowIso_()]]);
-  } else if (fields.link) {
-    setOverride_(newId, { link: fields.link });
   }
 }
 
@@ -435,17 +435,39 @@ function readProceso_() {
     }
   }
 
+  var rich = obsRich_(L);
   var iniciativas = L.tasks.map(function (t) {
     var row = values[t.row - 1];
+    var obsText = L.get(row, "obs");
+    var link = rich ? obsLink_(rich[t.row - 1][0], obsText) : null;
     return {
+      link: link,
       prioridad: L.get(row, "prioridad"), area: L.get(row, "area"), tema: L.get(row, "tema"),
       tarea: L.get(row, "tarea"), responsable: L.get(row, "responsable"),
       inicio: toIsoDate_(L.get(row, "inicio")), tiempo: toIsoDate_(L.get(row, "tiempo")),
-      cierre: toIsoDate_(L.get(row, "cierre")), estado: L.get(row, "estado"), obs: L.get(row, "obs")
+      cierre: toIsoDate_(L.get(row, "cierre")), estado: L.get(row, "estado"),
+      obs: (obsText && link && String(obsText).trim() === link) ? null : obsText
     };
   });
 
   return { objetivo: objetivo, prioridades: prioridades, iniciativas: iniciativas, finalizados: [], backlog: [] };
+}
+
+/* Link de OBSERVACIONES: texto enlazado en la celda, o una URL escrita. */
+function obsLink_(richValue, text) {
+  if (richValue) {
+    var url = richValue.getLinkUrl();
+    if (url) return url;
+    var runs = richValue.getRuns();
+    for (var i = 0; i < runs.length; i++) if (runs[i].getLinkUrl()) return runs[i].getLinkUrl();
+  }
+  var m = String(text || "").match(/https?:\/\/\S+/);
+  return m ? m[0] : null;
+}
+
+function obsRich_(L) {
+  if (L.cols.obs === undefined) return null;
+  return L.sheet.getRange(1, L.cols.obs + 1, L.values.length, 1).getRichTextValues();
 }
 
 function readMetricas_() {
@@ -506,10 +528,19 @@ function writeTaskCells_(L, row, fields) {
       : (k === "inicio" || k === "cierre") ? [toSheetDate_(v)] : [v];
     if (!setSafe_(cell, candidates)) perdidos.push(COLS_02[k].charAt(0) + COLS_02[k].slice(1).toLowerCase() + ": " + v);
   });
-  if (L.cols.obs !== undefined && (fields.obs !== undefined || perdidos.length)) {
+  // OBSERVACIONES guarda el texto y, si hay, el link del entregable (texto enlazado).
+  if (L.cols.obs !== undefined && (fields.obs !== undefined || fields.link !== undefined || perdidos.length)) {
     var obsCell = L.sheet.getRange(row, L.cols.obs + 1);
-    var base = fields.obs !== undefined ? (fields.obs || "") : String(obsCell.getValue() || "");
-    obsCell.setValue([base].concat(perdidos).filter(Boolean).join(" | "));
+    var currentText = String(obsCell.getValue() || "");
+    var currentLink = obsLink_(obsCell.getRichTextValue(), currentText);
+    if (currentLink && currentText.trim() === currentLink) currentText = "";
+    var base = fields.obs !== undefined ? (fields.obs || "") : currentText;
+    var text = [base].concat(perdidos).filter(Boolean).join(" | ");
+    var link = fields.link !== undefined ? (fields.link || null) : currentLink;
+    if (link && !text) text = link;
+    var builder = SpreadsheetApp.newRichTextValue().setText(text);
+    if (link && text) builder = builder.setLinkUrl(link);
+    obsCell.setRichTextValue(builder.build());
   }
   return perdidos;
 }
@@ -540,7 +571,6 @@ function addTask_(fields) {
   var perdidos = writeTaskCells_(L2, row, Object.assign({ estado: "Por hacer" }, fields));
   SpreadsheetApp.flush();
   var newId = idAtRow_(row);
-  if (fields.link) setOverride_(newId, { link: fields.link });
   return { id: newId, enObservaciones: perdidos };
 }
 
@@ -615,4 +645,21 @@ function deleteMeetingSheet_(p) {
     }
   }
   throw new Error("No encuentro esa reunión en '" + SHEET_ETAPA1 + "'. Recargá la página.");
+}
+
+/* Pasa a OBSERVACIONES de 02 los links que quedaron en "WebApp - Overrides". */
+function migrarLinks_() {
+  var overrides = readOverrides_();
+  var L = procesoLayout_();
+  var log = [];
+  Object.keys(overrides).forEach(function (id) {
+    var link = overrides[id].link;
+    if (!link) return;
+    var t = findTask_(L, id);
+    if (!t) { log.push(id + ": no está en 02"); return; }
+    writeTaskCells_(L, t.row, { link: link });
+    migrateOverride_(id, id, { link: null });
+    log.push(id + " -> link en OBSERVACIONES");
+  });
+  return log;
 }

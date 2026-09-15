@@ -632,7 +632,8 @@ function sheetTaskEdit(t, fields){
   }
   const ov = overridesState[t.id];
   if(ov){ delete ov.estado; delete ov.inicio; delete ov.cierre; }
-  if(fields.link!==undefined) overridesState[t.id] = Object.assign({}, overridesState[t.id], {link: fields.link});
+  // El link se guarda en OBSERVACIONES de la hoja 02; el override queda sin link.
+  if(fields.link!==undefined) overridesState[t.id] = Object.assign({}, overridesState[t.id], {link: null});
   render();
   return sheetWrite("updateTask", {id: t.id, fields});
 }
@@ -948,7 +949,7 @@ function currentEstado(t){
 function taskLink(t){
   if(t.source==="custom") return t.link || null;
   const ov = overridesState[t.id];
-  return (ov && ov.link) || null;
+  return t.link || (ov && ov.link) || null;
 }
 
 /* =====================================================================
