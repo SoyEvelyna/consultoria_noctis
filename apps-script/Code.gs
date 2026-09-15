@@ -307,7 +307,40 @@ function readSeed_() {
   var proceso = readProceso_();
   proceso.etapa1 = readEtapa1_();
   proceso.metricas = readMetricas_();
+  proceso.opciones = readOpciones_();
   return proceso;
+}
+
+/* Valores de un desplegable de la Hoja (sin importar si acepta otros). */
+function dropdownValues_(cell) {
+  var dv = cell.getDataValidation();
+  if (!dv) return [];
+  var type = dv.getCriteriaType();
+  var crit = dv.getCriteriaValues();
+  var vals = [];
+  if (type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) vals = crit[0];
+  else if (type === SpreadsheetApp.DataValidationCriteria.VALUE_IN_RANGE) {
+    vals = crit[0].getValues().map(function (r) { return r[0]; });
+  }
+  return vals.map(function (v) { return String(v).trim(); }).filter(Boolean);
+}
+
+/* Opciones de los desplegables, para que la web ofrezca exactamente las mismas:
+   si se suma un responsable o un área en la Hoja, aparece en la web al recargar. */
+function readOpciones_() {
+  var out = { responsable: [], area: [], responsableReuniones: [] };
+  try {
+    var L = procesoLayout_();
+    var row = L.tasks.length ? L.tasks[0].row : L.header + 2;
+    ["responsable", "area"].forEach(function (k) {
+      if (L.cols[k] !== undefined) out[k] = dropdownValues_(L.sheet.getRange(row, L.cols[k] + 1));
+    });
+  } catch (err) {}
+  try {
+    var T = etapa1Table_();
+    out.responsableReuniones = dropdownValues_(T.sheet.getRange(T.header + 2, 4));
+  } catch (err2) {}
+  return out;
 }
 
 function etapa1Table_() {

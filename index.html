@@ -434,9 +434,23 @@ function initials(r){
 }
 function respLabel(r){ return r || "Sin asignar"; }
 function allResponsables(){
-  const set = new Set(RESPONSABLES);
+  const base = SHEET_OPCIONES.responsable && SHEET_OPCIONES.responsable.length ? SHEET_OPCIONES.responsable : RESPONSABLES;
+  const set = new Set(base);
+  TASKS.forEach(t=>{ if(t.responsable && t.source!=="etapa1") set.add(t.responsable); });
   customTasksState.forEach(c=>{ if(c.responsable) set.add(c.responsable); });
   return Array.from(set);
+}
+function allAreas(){
+  const set = new Set(SHEET_OPCIONES.area || []);
+  TASKS.forEach(t=>{ if(t.area && t.source!=="etapa1") set.add(t.area); });
+  return Array.from(set);
+}
+/* Opciones de un <select>; si el valor actual no está en la lista, se agrega. */
+function optionsHtml(list, current, emptyLabel){
+  const vals = list.slice();
+  if(current && !vals.includes(current)) vals.unshift(current);
+  return `<option value="">${emptyLabel||"—"}</option>` +
+    vals.map(v=>`<option value="${escHtml(v)}" ${v===current?"selected":""}>${escHtml(v)}</option>`).join("");
 }
 function toHref(s){ const v=s.trim(); return /^https?:\/\//i.test(v) ? v : "https://"+v; }
 function fmtDate(iso){
@@ -826,6 +840,7 @@ function gasApplySeed_(seed){
   if(seed.objetivo) OBJETIVO = seed.objetivo;
   if(seed.prioridades && seed.prioridades.length) PRIORIDADES = seed.prioridades;
   if(seed.metricas) RAW.metricas = seed.metricas;
+  if(seed.opciones) SHEET_OPCIONES = seed.opciones;
   buildFaseMeta_();
   rebuildTasks_();
 }
@@ -952,6 +967,8 @@ const VIEWS = [
 ];
 const ESTADOS = ["Por hacer","En proceso","En revisión","Completado","Bloqueado"];
 const RESPONSABLES = ["Eve","Fer","Nati","Evelyna","Equipo"];
+/* Opciones de los desplegables de la Hoja (llegan con la lectura en vivo). */
+let SHEET_OPCIONES = {responsable:[], area:[], responsableReuniones:[]};
 
 function trackedTasks(){
   const seed = TASKS.filter(t=>t.source!=="etapa1")
@@ -1351,8 +1368,7 @@ function renderReuniones(root){
       <div class="field"><label class="flabel">Duración</label><input type="text" id="mt-duracion" value="2 hs" placeholder="Ej: 2 hs"></div>
     </div>
     <div class="field"><label class="flabel">Responsable / participantes</label>
-      <input type="text" id="mt-responsable" list="mt-resp-list" value="Equipo" placeholder="Ej: Equipo, Evelyna">
-      <datalist id="mt-resp-list">${Array.from(new Set(["Equipo","Evelyna","Natalia + Evelyna"].concat(allResponsables()))).map(r=>`<option value="${r}">`).join("")}</datalist>
+      <select id="mt-responsable">${optionsHtml(SHEET_OPCIONES.responsableReuniones && SHEET_OPCIONES.responsableReuniones.length ? SHEET_OPCIONES.responsableReuniones : ["Equipo","Evelyna","Natalia + Evelyna"], "Equipo", "—")}</select>
     </div>
     <div class="field"><label class="flabel">Temas tratados / próximos pasos</label>
       <textarea id="mt-resumen" placeholder="Ej: repasamos el lanzamiento de brand, quedó pendiente confirmar fecha con el cliente…"></textarea>
@@ -1554,13 +1570,12 @@ function openDetailModal(t){
     <h3>Editar tarea</h3>
     <div class="field"><label class="flabel">Tarea *</label><textarea id="ed-tarea" rows="2">${esc(t.tarea)}</textarea></div>
     <div class="field-row">
-      <div class="field"><label class="flabel">Área</label><input type="text" id="ed-area" value="${esc(t.area)}"></div>
+      <div class="field"><label class="flabel">Área</label><select id="ed-area">${optionsHtml(allAreas(), t.area, "—")}</select></div>
       <div class="field"><label class="flabel">Tema</label><input type="text" id="ed-tema" value="${esc(t.tema)}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label class="flabel">Responsable</label>
-        <input type="text" id="ed-resp" list="ed-resp-list" value="${esc(t.responsable)}" placeholder="Ej: Eve">
-        <datalist id="ed-resp-list">${allResponsables().map(r=>`<option value="${esc(r)}">`).join("")}</datalist>
+        <select id="ed-resp">${optionsHtml(allResponsables(), t.responsable, "Sin asignar")}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${e}</option>`).join("")}</select>
@@ -1621,13 +1636,12 @@ function openAddTaskModal(){
     <h3>Nueva tarea</h3>
     <div class="field"><label class="flabel">Tarea *</label><input type="text" id="nt-tarea" placeholder="Ej: Armar propuesta de precios para nicho X"></div>
     <div class="field-row">
-      <div class="field"><label class="flabel">Área</label><input type="text" id="nt-area" placeholder="Ej: Marketing"></div>
+      <div class="field"><label class="flabel">Área</label><select id="nt-area">${optionsHtml(allAreas(), "", "—")}</select></div>
       <div class="field"><label class="flabel">Tema</label><input type="text" id="nt-tema" placeholder="Ej: Redes Sociales"></div>
     </div>
     <div class="field-row">
       <div class="field"><label class="flabel">Responsable</label>
-        <input type="text" id="nt-resp" list="nt-resp-list" placeholder="Ej: Eve">
-        <datalist id="nt-resp-list">${allResponsables().map(r=>`<option value="${r}">`).join("")}</datalist>
+        <select id="nt-resp">${optionsHtml(allResponsables(), "", "Sin asignar")}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}</select>
