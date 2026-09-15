@@ -14,7 +14,8 @@
  *   OBSERVACIONES), así que se pueden mover sin romper la web.
  * - Las celdas con desplegable solo reciben valores de su lista: si un valor
  *   no entra, no se pierde — queda anotado en Observaciones.
- * - El link del entregable se guarda como texto enlazado en OBSERVACIONES de 02.
+ * - Los links del entregable (hasta 3) se guardan en OBSERVACIONES de 02: debajo
+ *   del texto, un link por línea y cada uno clickeable.
  *   Las notas van a "WebApp - Notas" ("WebApp - Overrides" solo guarda tareas
  *   ocultas y links viejos), pestañas que el script crea si no existen.
  * - Autenticación: token compartido (ACCESS_TOKEN), el mismo que usa la web.
@@ -444,30 +445,44 @@ function readProceso_(L) {
   var iniciativas = L.tasks.map(function (t) {
     var row = values[t.row - 1];
     var obsText = L.get(row, "obs");
-    var link = rich ? obsLink_(rich[t.row - 1][0], obsText) : null;
+    var links = rich ? obsLinks_(rich[t.row - 1][0], obsText) : [];
+    var link = links.length ? links.join("\n") : null;
     return {
       link: link,
       prioridad: L.get(row, "prioridad"), area: L.get(row, "area"), tema: L.get(row, "tema"),
       tarea: L.get(row, "tarea"), responsable: L.get(row, "responsable"),
       inicio: toIsoDate_(L.get(row, "inicio")), tiempo: toIsoDate_(L.get(row, "tiempo")),
       cierre: toIsoDate_(L.get(row, "cierre")), estado: L.get(row, "estado"),
-      obs: (obsText && link && String(obsText).trim() === link) ? null : obsText
+      obs: obsSinLinks_(obsText, links)
     };
   });
 
   return { objetivo: objetivo, prioridades: prioridades, iniciativas: iniciativas, finalizados: [], backlog: [] };
 }
 
-/* Link de OBSERVACIONES: texto enlazado en la celda, o una URL escrita. */
-function obsLink_(richValue, text) {
+var MAX_LINKS = 3;
+
+/* Links de OBSERVACIONES (hasta 3): textos enlazados en la celda y URLs escritas. */
+function obsLinks_(richValue, text) {
+  var out = [];
+  function add(u) { if (u && out.indexOf(u) === -1 && out.length < MAX_LINKS) out.push(u); }
   if (richValue) {
-    var url = richValue.getLinkUrl();
-    if (url) return url;
-    var runs = richValue.getRuns();
-    for (var i = 0; i < runs.length; i++) if (runs[i].getLinkUrl()) return runs[i].getLinkUrl();
+    add(richValue.getLinkUrl());
+    richValue.getRuns().forEach(function (run) { add(run.getLinkUrl()); });
   }
-  var m = String(text || "").match(/https?:\/\/\S+/);
-  return m ? m[0] : null;
+  (String(text || "").match(/https?:\/\/\S+/g) || []).forEach(add);
+  return out;
+}
+
+/* Texto de OBSERVACIONES sin las líneas que son solo un link. */
+function obsSinLinks_(text, links) {
+  if (!text) return null;
+  var lines = String(text).split(/\n/).filter(function (line) {
+    var l = line.trim();
+    return l && links.indexOf(l) === -1 && !/^https?:\/\/\S+$/.test(l);
+  });
+  var t = lines.join("\n").trim();
+  return t || null;
 }
 
 function obsRich_(L) {
@@ -535,16 +550,22 @@ function writeTaskCells_(L, row, fields) {
   });
   // OBSERVACIONES guarda el texto y, si hay, el link del entregable (texto enlazado).
   if (L.cols.obs !== undefined && (fields.obs !== undefined || fields.link !== undefined || perdidos.length)) {
+    // Queda: texto de observaciones y, debajo, un link por línea (cada uno clickeable).
     var obsCell = L.sheet.getRange(row, L.cols.obs + 1);
     var currentText = String(obsCell.getValue() || "");
-    var currentLink = obsLink_(obsCell.getRichTextValue(), currentText);
-    if (currentLink && currentText.trim() === currentLink) currentText = "";
-    var base = fields.obs !== undefined ? (fields.obs || "") : currentText;
-    var text = [base].concat(perdidos).filter(Boolean).join(" | ");
-    var link = fields.link !== undefined ? (fields.link || null) : currentLink;
-    if (link && !text) text = link;
+    var currentLinks = obsLinks_(obsCell.getRichTextValue(), currentText);
+    var base = fields.obs !== undefined ? (fields.obs || "") : (obsSinLinks_(currentText, currentLinks) || "");
+    base = [base].concat(perdidos).filter(Boolean).join(" | ");
+    var links = fields.link !== undefined
+      ? String(fields.link || "").split(/\s*\n\s*|\s+\|\s+/).map(function (s) { return s.trim(); }).filter(Boolean).slice(0, MAX_LINKS)
+      : currentLinks;
+    var text = [base].concat(links).filter(Boolean).join("\n");
     var builder = SpreadsheetApp.newRichTextValue().setText(text);
-    if (link && text) builder = builder.setLinkUrl(link);
+    var pos = base ? base.length + 1 : 0;
+    links.forEach(function (url) {
+      builder = builder.setLinkUrl(pos, pos + url.length, url);
+      pos += url.length + 1;
+    });
     obsCell.setRichTextValue(builder.build());
   }
   return perdidos;

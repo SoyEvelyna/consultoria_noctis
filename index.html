@@ -453,6 +453,14 @@ function optionsHtml(list, current, emptyLabel){
     vals.map(v=>`<option value="${escHtml(v)}" ${v===current?"selected":""}>${escHtml(v)}</option>`).join("");
 }
 function toHref(s){ const v=s.trim(); return /^https?:\/\//i.test(v) ? v : "https://"+v; }
+/* Cada tarea admite hasta 3 links. Se guardan juntos en el campo "link",
+   uno por línea, así la hoja y el backend no necesitan columnas nuevas. */
+const MAX_LINKS = 3;
+function parseLinks(s){ return String(s||"").split(/\s*\n\s*|\s+\|\s+/).map(x=>x.trim()).filter(Boolean).slice(0, MAX_LINKS); }
+function joinLinks(arr){ const v = (arr||[]).map(x=>String(x||"").trim()).filter(Boolean).slice(0, MAX_LINKS); return v.length ? v.join("\n") : null; }
+function linkLabel(url){
+  try{ const u = new URL(toHref(url)); return u.hostname.replace(/^www\./,""); }catch(e){ return url; }
+}
 function fmtDate(iso){
   if(!iso) return "—";
   const d = new Date(iso+"T00:00:00");
@@ -1460,11 +1468,12 @@ function renderEntregables(root){
 
   withObs.forEach(t=>{
     const estado = currentEstado(t);
-    const link = taskLink(t);
+    const links = parseLinks(taskLink(t));
     const row = document.createElement("div");
     row.className = "deliv-row";
-    const nameHtml = link
-      ? `<a class="deliv-link" href="${toHref(link)}" target="_blank" rel="noopener">${t.obs || link}</a>`
+    const nameHtml = links.length
+      ? `<a class="deliv-link" href="${toHref(links[0])}" target="_blank" rel="noopener">${t.obs || linkLabel(links[0])}</a>` +
+        links.slice(1).map((l,i)=>` · <a class="deliv-link" href="${toHref(l)}" target="_blank" rel="noopener">Link ${i+2}</a>`).join("")
       : (t.obs || "—");
     row.innerHTML = `
       <div class="deliv-icon">E</div>
@@ -1609,9 +1618,9 @@ function openDetailModal(t){
     </div>
     <div class="field"><label class="flabel">Observaciones / entregable</label><textarea id="ed-obs" rows="2">${esc(t.obs)}</textarea></div>
     <div class="field">
-      <label class="flabel">Link del entregable (Drive, Docs, web…)</label>
-      <input type="url" id="ed-link" placeholder="https://…" value="${esc(link)}">
-      ${link?`<div style="margin-top:8px"><a class="entregable-link" href="${toHref(link)}" target="_blank" rel="noopener">Abrir link ↗</a></div>`:""}
+      <label class="flabel">Links del entregable (hasta 3: Drive, Docs, web…)</label>
+      ${[0,1,2].map(i=>`<input type="url" id="ed-link${i+1}" placeholder="https://… (link ${i+1})" value="${esc(parseLinks(link)[i]||"")}" style="margin-bottom:6px">`).join("")}
+      ${parseLinks(link).length?`<div style="margin-top:4px;display:flex;gap:14px;flex-wrap:wrap">${parseLinks(link).map((l,i)=>`<a class="entregable-link" href="${toHref(l)}" target="_blank" rel="noopener">Abrir link ${i+1} ↗</a>`).join("")}</div>`:""}
     </div>
     <div class="modal-actions">
       <button class="btn-primary" id="ed-save">Guardar cambios</button>
@@ -1624,14 +1633,16 @@ function openDetailModal(t){
   box.querySelector("#ed-save").onclick = ()=>{
     if(flagMissing(box, [[box.querySelector("#ed-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
     const val = id => box.querySelector(id).value.trim() || null;
-    const orig = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio, cierre:t.cierre||t.tiempo, obs:t.obs, link};
-    const inputs = {prioridad:"#ed-prio", tarea:"#ed-tarea", area:"#ed-area", tema:"#ed-tema", responsable:"#ed-resp", inicio:"#ed-inicio", cierre:"#ed-cierre", obs:"#ed-obs", link:"#ed-link"};
+    const orig = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio, cierre:t.cierre||t.tiempo, obs:t.obs};
+    const inputs = {prioridad:"#ed-prio", tarea:"#ed-tarea", area:"#ed-area", tema:"#ed-tema", responsable:"#ed-resp", inicio:"#ed-inicio", cierre:"#ed-cierre", obs:"#ed-obs"};
     const fields = {};
     Object.keys(inputs).forEach(k=>{
       const before = orig[k]==null ? null : (String(orig[k]).trim() || null);
       const after = val(inputs[k]);
       if(after!==before) fields[k] = after;
     });
+    const nuevosLinks = joinLinks([1,2,3].map(n=>box.querySelector("#ed-link"+n).value));
+    if(nuevosLinks !== joinLinks(parseLinks(link))) fields.link = nuevosLinks;
     const nuevoEstado = box.querySelector("#ed-estado").value;
     if(nuevoEstado!==estado) fields.estado = nuevoEstado;
     if(Object.keys(fields).length) saveTaskEdits(t, fields);
@@ -1674,7 +1685,9 @@ function openAddTaskModal(){
       <select id="nt-prio">${["P1","P2","P3","Transversal"].map(o=>`<option value="${o}">${o}</option>`).join("")}</select>
     </div>
     <div class="field"><label class="flabel">Observaciones (opcional)</label><input type="text" id="nt-obs"></div>
-    <div class="field"><label class="flabel">Link (opcional)</label><input type="url" id="nt-link" placeholder="https://…"></div>
+    <div class="field"><label class="flabel">Links (opcional, hasta 3)</label>
+      ${[1,2,3].map(n=>`<input type="url" id="nt-link${n}" placeholder="https://… (link ${n})" style="margin-bottom:6px">`).join("")}
+    </div>
     <div class="modal-actions">
       <button class="btn-primary" id="nt-submit">Agregar tarea</button>
       <button class="btn-secondary" id="nt-cancel">Cancelar</button>
@@ -1694,7 +1707,7 @@ function openAddTaskModal(){
       obs: box.querySelector("#nt-obs").value.trim() || null,
       inicio: box.querySelector("#nt-inicio").value || null,
       cierre: box.querySelector("#nt-cierre").value || null,
-      link: box.querySelector("#nt-link").value.trim() || null,
+      link: joinLinks([1,2,3].map(n=>box.querySelector("#nt-link"+n).value)),
       estado: box.querySelector("#nt-estado").value,
     });
     closeModal();
@@ -1722,7 +1735,7 @@ function buildExportRows(){
       "Estado": estado,
       "Prioridad": urgencia(t, estado),
       "Atrasada": isOverdue(t, estado) ? "Sí" : "No",
-      "Link": taskLink(t) || "",
+      "Links": parseLinks(taskLink(t)).join(" | "),
       "Entregable / Obs.": t.obs || "",
     };
   });
