@@ -521,7 +521,7 @@ function customAsTask(doc){
   const fase = Number(doc.fase);
   return {
     id: doc.id, source:"custom", area: doc.area || "General", tema: doc.tema || null,
-    tarea: doc.tarea, responsable: doc.responsable || null,
+    prioridad: doc.prioridad || null, tarea: doc.tarea, responsable: doc.responsable || null,
     inicio: doc.inicio || null, tiempo: null, cierre: doc.cierre || null,
     estado: doc.estado || "Por hacer", obs: doc.obs || null, link: doc.link || null,
     fase: [1,2,3].includes(fase) ? fase : classifyFase(doc), estadoOriginal: doc.estado || null,
@@ -629,7 +629,17 @@ function sheetDeleteTask(t){
   return sheetWrite("deleteTask", {id: t.id});
 }
 
+/* Mientras se lee el Sheet al abrir, no se guarda nada: si no, el cambio
+   quedaría solo en este navegador y no llegaría a la hoja. */
+function connecting(){
+  if(dbMode!=="checking") return false;
+  alert("Todavía se está conectando con el Sheet. Probá de nuevo en unos segundos.");
+  render();
+  return true;
+}
+
 function setEstado(t, estado){
+  if(connecting()) return;
   if(t.source==="custom") return patchCustomTask(t.id, {estado});
   if(sheetLive()) return sheetTaskEdit(t, {estado});
   return patchSeedOverride(t.id, {estado});
@@ -643,6 +653,7 @@ function setLink(t, link){
 /* Guarda la edición de cualquier tarea (solo los campos que cambiaron).
    Sin Sheet conectado, las tareas base pasan a una copia local editable. */
 async function saveTaskEdits(t, fields){
+  if(connecting()) return;
   if(t.source==="custom") return patchCustomTask(t.id, fields);
   if(sheetLive()) return sheetTaskEdit(t, fields);
   const base = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio,
@@ -652,6 +663,7 @@ async function saveTaskEdits(t, fields){
 }
 
 async function addCustomTask(data){
+  if(connecting()) return;
   if(sheetLive()){
     customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
     render();
@@ -680,6 +692,7 @@ async function deleteCustomTask(taskId){
 /* Se muestra al instante y después se guarda: sin esto, en modo
    sincronizado no aparecía nada hasta recargar la página. */
 async function addMeeting(data){
+  if(connecting()) return;
   if(sheetLive()){
     RAW.etapa1.push({fecha:data.fecha, hs:data.duracion, tarea:data.tarea||"Encuentro I Estado del proceso de trabajo",
       responsable:data.responsable, estado:"Finalizado", resultado:data.resumen, obs:null});
@@ -715,6 +728,7 @@ function deleteSheetMeeting(e){
 }
 
 async function addNote(text, author){
+  if(connecting()) return;
   const note = {id:"n"+Date.now(), text, author, createdAt:new Date().toISOString()};
   notesState.unshift(note);
   render();
