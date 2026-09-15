@@ -873,6 +873,13 @@ function htmlResumen_(r, hoy, prueba) {
   return html;
 }
 
+/* Para ejecutar a mano desde el editor (el menú no muestra funciones con "_").
+   El resumen sale desde la cuenta dueña del proyecto que lo ejecuta: se usa
+   una copia de este archivo en un proyecto de hola@soyevelyna.com (sin Web App). */
+function probarResumenAhora() { Logger.log(JSON.stringify(probarResumen_())); }
+function activarResumenDiario() { Logger.log(JSON.stringify(activarResumen_())); }
+function desactivarResumenDiario() { Logger.log(JSON.stringify(desactivarResumen_())); }
+
 /* Lo ejecuta el activador diario (18 h). También guarda la foto nueva. */
 function enviarResumenDiario() {
   var ahora = fotoActual_();
