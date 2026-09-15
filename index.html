@@ -1625,11 +1625,20 @@ function openDetailModal(t){
     <div class="modal-actions">
       <button class="btn-primary" id="ed-save">Guardar cambios</button>
       <button class="btn-secondary" id="ed-cancel">Cancelar</button>
+      <button class="btn-secondary" id="task-duplicate">Duplicar</button>
       <button class="btn-danger" id="task-delete">Eliminar tarea</button>
     </div>
   `;
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#ed-cancel").onclick = closeModal;
+  /* Duplicar: abre "Nueva tarea" con los datos de esta, para editar la copia antes de guardarla. */
+  box.querySelector("#task-duplicate").onclick = ()=>{
+    openAddTaskModal({
+      tarea: t.tarea + " (copia)", area: t.area, tema: t.tema, responsable: t.responsable,
+      prioridad: t.prioridad, estado: estado, inicio: t.inicio, cierre: t.cierre || t.tiempo,
+      obs: t.obs, links: parseLinks(link),
+    });
+  };
   box.querySelector("#ed-save").onclick = ()=>{
     if(flagMissing(box, [[box.querySelector("#ed-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
     const val = id => box.querySelector(id).value.trim() || null;
@@ -1658,20 +1667,22 @@ function openDetailModal(t){
   backdrop.hidden = false;
 }
 
-function openAddTaskModal(){
+function openAddTaskModal(prefill){
+  // Con "prefill" es un duplicado; desde el botón llega el evento del clic, que se ignora.
+  const copia = prefill && typeof prefill.tarea === "string" ? prefill : null;
   const backdrop = document.getElementById("modal");
   const box = document.getElementById("modal-box");
   box.innerHTML = `
     <button class="modal-close" aria-label="Cerrar">&times;</button>
-    <h3>Nueva tarea</h3>
+    <h3>${copia ? "Duplicar tarea" : "Nueva tarea"}</h3>
     <div class="field"><label class="flabel">Tarea *</label><input type="text" id="nt-tarea" placeholder="Ej: Armar propuesta de precios para nicho X"></div>
     <div class="field-row">
-      <div class="field"><label class="flabel">Área</label><select id="nt-area">${optionsHtml(allAreas(), "", "—")}</select></div>
+      <div class="field"><label class="flabel">Área</label><select id="nt-area">${optionsHtml(allAreas(), copia ? copia.area : "", "—")}</select></div>
       <div class="field"><label class="flabel">Tema</label><input type="text" id="nt-tema" placeholder="Ej: Redes Sociales"></div>
     </div>
     <div class="field-row">
       <div class="field"><label class="flabel">Responsable</label>
-        <select id="nt-resp">${optionsHtml(allResponsables(), "", "Sin asignar")}</select>
+        <select id="nt-resp">${optionsHtml(allResponsables(), copia ? copia.responsable : "", "Sin asignar")}</select>
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${e}</option>`).join("")}</select>
@@ -1689,10 +1700,23 @@ function openAddTaskModal(){
       ${[1,2,3].map(n=>`<input type="url" id="nt-link${n}" placeholder="https://… (link ${n})" style="margin-bottom:6px">`).join("")}
     </div>
     <div class="modal-actions">
-      <button class="btn-primary" id="nt-submit">Agregar tarea</button>
+      <button class="btn-primary" id="nt-submit">${copia ? "Crear copia" : "Agregar tarea"}</button>
       <button class="btn-secondary" id="nt-cancel">Cancelar</button>
     </div>
   `;
+  if(copia){
+    const set = (id, v)=>{ const el = box.querySelector(id); if(el && v!=null) el.value = v; };
+    set("#nt-tarea", copia.tarea);
+    set("#nt-area", copia.area);
+    set("#nt-tema", copia.tema);
+    set("#nt-resp", copia.responsable);
+    set("#nt-estado", copia.estado);
+    set("#nt-inicio", copia.inicio);
+    set("#nt-cierre", copia.cierre);
+    set("#nt-obs", copia.obs);
+    if(copia.prioridad) set("#nt-prio", copia.prioridad);
+    (copia.links||[]).forEach((l,i)=> set("#nt-link"+(i+1), l));
+  }
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#nt-cancel").onclick = closeModal;
   box.querySelector("#nt-submit").onclick = ()=>{
