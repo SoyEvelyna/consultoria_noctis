@@ -583,6 +583,7 @@ function setSyncUI(mode){
   dot.classList.remove("-on","-local");
   if(mode==="live"){ dot.classList.add("-on"); lbl.textContent = "Sincronizado con el equipo"; }
   else if(mode==="local"){ dot.classList.add("-local"); lbl.textContent = "Modo local (solo este dispositivo)"; }
+  else if(mode==="retrying"){ dot.classList.add("-local"); lbl.textContent = "Sin conexión con el Sheet, reintentando…"; }
   else { lbl.textContent = "Conectando…"; }
 }
 
@@ -615,12 +616,39 @@ async function patchCustomTask(taskId, patch){
    se guarda (en orden) y al terminar se vuelve a leer el Sheet. */
 const ESTADO_A_SHEET = {"Por hacer":"Pendiente","En proceso":"En proceso","En revisión":"Revisar","Completado":"Finalizada","Bloqueado":"Bloqueado"};
 function sheetLive(){ return dbMode==="live" && !!gasData; }
+/* Con el Sheet configurado, las ediciones siempre van al Sheet: se muestran al
+   instante y se guardan en segundo plano, aunque la conexión esté lenta. */
+function sheetMode(){ return gasConfigured() && dbMode!=="local"; }
 
 let sheetQueue = Promise.resolve();
 let sheetPending = 0;
+
+/* Los cambios por enviar se guardan en el navegador: si se recarga la página
+   antes de que Google responda, se envían en la visita siguiente. */
+function leerPendientes(){ try{ return JSON.parse(localStorage.getItem(localKey("pendientes"))||"[]"); }catch(e){ return []; } }
+function guardarPendientes(list){ try{ localStorage.setItem(localKey("pendientes"), JSON.stringify(list)); }catch(e){} }
+
+function updateSyncLabel(){
+  const lbl = document.getElementById("sync-label");
+  if(!lbl) return;
+  if(sheetPending>0) lbl.textContent = "Guardando " + sheetPending + (sheetPending===1 ? " cambio…" : " cambios…");
+  else if(dbMode==="live") lbl.textContent = "Sincronizado con el equipo";
+  else if(dbMode==="retrying") lbl.textContent = "Sin conexión con el Sheet, reintentando…";
+  else if(dbMode==="checking") lbl.textContent = "Conectando…";
+}
+
 async function sheetWrite(action, payload){
+  const item = {id: "p" + Date.now() + Math.random().toString(36).slice(2,6), action, payload};
+  guardarPendientes(leerPendientes().concat([item]));
   sheetPending++;
-  const job = sheetQueue.then(()=>gasWrite_(action, payload)).catch(e=>{
+  updateSyncLabel();
+  const job = sheetQueue.then(async ()=>{
+    // Primera visita sin datos guardados: se espera la primera lectura para usar los ids reales.
+    if(!gasData) await firstRead;
+    // Se saca de pendientes justo antes de enviarlo, para no mandarlo dos veces.
+    guardarPendientes(leerPendientes().filter(x=>x.id!==item.id));
+    return gasWrite_(action, payload);
+  }).catch(e=>{
     console.error(e);
     if(!e.soft) alert("No se pudo guardar en el Sheet: " + e.message);
   });
@@ -630,7 +658,12 @@ async function sheetWrite(action, payload){
   // tareas recién creadas siguen con id provisorio ("tmp…").
   if(sheetPending===1){ try{ await gasRefresh_(); }catch(e){ console.error(e); } }
   sheetPending--;
+  updateSyncLabel();
 }
+
+window.addEventListener("beforeunload", (e)=>{
+  if(sheetPending>0){ e.preventDefault(); e.returnValue = ""; }
+});
 
 function sheetTaskEdit(t, fields){
   const local = TASKS.find(x=>x.id===t.id);
@@ -657,6 +690,8 @@ function sheetDeleteTask(t){
    quedaría solo en este navegador y no llegaría a la hoja. */
 let resolveStoreReady = null;
 const storeReady = new Promise(r=>{ resolveStoreReady = r; });
+let resolveFirstRead = null;
+const firstRead = new Promise(r=>{ resolveFirstRead = r; });
 
 /* Si al guardar todavía se está leyendo el Sheet, se espera a que conecte y
    recién ahí se guarda. Si no pudo conectar, se avisa y no se guarda solo en
@@ -676,9 +711,8 @@ async function waitForSheet(){
 }
 
 async function setEstado(t, estado){
-  if(await waitForSheet()) return;
   if(t.source==="custom") return patchCustomTask(t.id, {estado});
-  if(sheetLive()) return sheetTaskEdit(t, {estado});
+  if(sheetMode()) return sheetTaskEdit(t, {estado});
   return patchSeedOverride(t.id, {estado});
 }
 function setLink(t, link){
@@ -690,9 +724,8 @@ function setLink(t, link){
 /* Guarda la edición de cualquier tarea (solo los campos que cambiaron).
    Sin Sheet conectado, las tareas base pasan a una copia local editable. */
 async function saveTaskEdits(t, fields){
-  if(await waitForSheet()) return;
   if(t.source==="custom") return patchCustomTask(t.id, fields);
-  if(sheetLive()) return sheetTaskEdit(t, fields);
+  if(sheetMode()) return sheetTaskEdit(t, fields);
   const base = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio,
     cierre:t.cierre||t.tiempo, estado:currentEstado(t), obs:t.obs, link:taskLink(t), fase:t.fase};
   const copy = Object.assign(base, fields, {id: EDITED_PREFIX+t.id});
@@ -700,8 +733,7 @@ async function saveTaskEdits(t, fields){
 }
 
 async function addCustomTask(data){
-  if(await waitForSheet()) return;
-  if(sheetLive()){
+  if(sheetMode()){
     customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
     render();
     return sheetWrite("addTask", {fields: data});
@@ -729,8 +761,7 @@ async function deleteCustomTask(taskId){
 /* Se muestra al instante y después se guarda: sin esto, en modo
    sincronizado no aparecía nada hasta recargar la página. */
 async function addMeeting(data){
-  if(await waitForSheet()) return;
-  if(sheetLive()){
+  if(sheetMode()){
     RAW.etapa1.push({fecha:data.fecha, hs:data.duracion, tarea:data.tarea||"Encuentro I Estado del proceso de trabajo",
       responsable:data.responsable, estado:"Finalizado", resultado:data.resumen, obs:null});
     rebuildTasks_();
@@ -808,9 +839,9 @@ async function gasRead_(){
   const sep = GAS_CFG.url.indexOf("?")>=0 ? "&" : "?";
   // Google a veces responde con una página de error pasajera: se reintenta.
   let lastErr = null;
-  for(let intento=0; intento<5; intento++){
+  for(let intento=0; intento<4; intento++){
     const ctrl = new AbortController();
-    const timer = setTimeout(()=>ctrl.abort(), 30000);
+    const timer = setTimeout(()=>ctrl.abort(), 15000);
     try{
       const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token), {signal: ctrl.signal});
       const json = await res.json();
@@ -826,24 +857,49 @@ async function gasRead_(){
   throw lastErr;
 }
 
+/* La última lectura buena se guarda en el navegador: al abrir, la web muestra
+   esos datos al instante mientras conecta con el Sheet. */
+function guardarLectura(data){ try{ localStorage.setItem(localKey("ultimaLectura"), JSON.stringify(data)); }catch(e){} }
+function leerLectura(){ try{ return JSON.parse(localStorage.getItem(localKey("ultimaLectura"))||"null"); }catch(e){ return null; } }
+function aplicarLectura(data){
+  gasApplySeed_(data.seed);
+  overridesState = data.overrides || {};
+  notesState = data.notes || [];
+  customTasksState = (data.customTasks || []).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
+  meetingsState = data.meetings || [];
+}
+
 /* Vuelve a leer el Sheet después de guardar, para quedar igual que la hoja. */
 async function gasRefresh_(){
-  gasData = await gasRead_();
-  gasApplySeed_(gasData.seed);
-  overridesState = gasData.overrides || {};
-  notesState = gasData.notes || [];
-  customTasksState = (gasData.customTasks || []).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
-  meetingsState = gasData.meetings || [];
+  const data = await gasRead_();
+  gasData = data;
+  guardarLectura(data);
+  if(resolveFirstRead) resolveFirstRead(data);
+  aplicarLectura(data);
+  if(dbMode!=="live") setSyncUI("live");
   render();
 }
 
 /* Content-Type por defecto (text/plain) a propósito: evita el preflight
    CORS, que los Web Apps de Apps Script no responden. */
 async function gasWrite_(action, payload){
-  const res = await fetch(GAS_CFG.url, {
-    method: "POST",
-    body: JSON.stringify({token: GAS_CFG.token, action: action, payload: payload})
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 45000);
+  let res;
+  try{
+    res = await fetch(GAS_CFG.url, {
+      method: "POST",
+      body: JSON.stringify({token: GAS_CFG.token, action: action, payload: payload}),
+      signal: ctrl.signal
+    });
+  }catch(e){
+    // Sin respuesta: el cambio pudo guardarse igual; la relectura muestra lo que quedó.
+    const err = new Error("sin respuesta de Google en "+action);
+    err.soft = true;
+    throw err;
+  }finally{
+    clearTimeout(timer);
+  }
   // A veces Google devuelve una página de error aunque el cambio se guardó:
   // se marca como "soft" para no mostrar un aviso falso y releer el Sheet.
   let json;
@@ -930,7 +986,50 @@ async function initGasStore_(){
   };
 }
 
+/* Con Sheet: muestra al instante la última lectura guardada y conecta en
+   segundo plano. Si Google no responde, sigue reintentando y las ediciones se
+   guardan igual: nunca pasa a "modo local". */
+async function initSheetStore_(){
+  const cache = leerLectura();
+  if(cache && cache.seed){
+    gasData = cache;
+    aplicarLectura(cache);
+    if(resolveFirstRead) resolveFirstRead(cache);
+    render();
+  }
+  overridesDoc = gasOverridesDoc_();
+  notesCol = gasCollection_("notes");
+  customCol = gasCollection_("customTasks");
+  meetingsCol = gasCollection_("meetings");
+  // Cambios que quedaron sin enviar en una visita anterior.
+  const previos = leerPendientes();
+  if(previos.length){
+    guardarPendientes([]);
+    previos.forEach(p=>{ sheetWrite(p.action, p.payload); });
+  }
+  for(;;){
+    try{
+      const data = await gasRead_();
+      gasData = data;
+      guardarLectura(data);
+      if(resolveFirstRead) resolveFirstRead(data);
+      // Si hay cambios guardándose, la relectura al terminar actualiza la pantalla.
+      if(sheetPending===0) aplicarLectura(data);
+      setSyncUI("live");
+      updateSyncLabel();
+      render();
+      return;
+    }catch(e){
+      console.error("Apps Script no disponible, se reintenta:", e);
+      setSyncUI("retrying");
+      updateSyncLabel();
+      await new Promise(r=>setTimeout(r, 20000));
+    }
+  }
+}
+
 async function initStore(){
+  if(gasConfigured()) return initSheetStore_();
   loadLocal();
   try{
     if(window.claude && typeof window.claude.use === "function"){
@@ -1415,7 +1514,7 @@ function renderReuniones(root){
   });
 
   const combined = [];
-  const live = sheetLive();
+  const live = sheetMode();
   const hsLabel = hs => hs ? (/hs/i.test(String(hs)) ? hs : hs+" hs") : null;
   RAW.etapa1.forEach(e=> combined.push({fecha:e.fecha, responsable:e.responsable, duracion:hsLabel(e.hs), resumen:e.tarea+(e.resultado?" — "+e.resultado:""), historical:!live, src:e}));
   meetingsState.forEach(m=> combined.push(Object.assign({historical:false}, m)));
@@ -1660,7 +1759,7 @@ function openDetailModal(t){
   box.querySelector("#task-delete").onclick = ()=>{
     if(!confirm("¿Eliminar esta tarea?")) return;
     if(t.source==="custom") deleteCustomTask(t.id);
-    else if(sheetLive()) sheetDeleteTask(t);
+    else if(sheetMode()) sheetDeleteTask(t);
     else patchSeedOverride(t.id, {hidden:true});
     closeModal();
   };
