@@ -569,6 +569,7 @@ function saveLocalMeetings(){ try{ localStorage.setItem(localKey("meetings"), JS
 
 function setSyncUI(mode){
   dbMode = mode;
+  if(mode!=="checking" && resolveStoreReady) resolveStoreReady(mode);
   const dot = document.getElementById("sync-dot");
   const lbl = document.getElementById("sync-label");
   dot.classList.remove("-on","-local");
@@ -646,15 +647,28 @@ function sheetDeleteTask(t){
 
 /* Mientras se lee el Sheet al abrir, no se guarda nada: si no, el cambio
    quedaría solo en este navegador y no llegaría a la hoja. */
-function connecting(){
-  if(dbMode!=="checking") return false;
-  alert("Todavía se está conectando con el Sheet. Probá de nuevo en unos segundos.");
-  render();
-  return true;
+let resolveStoreReady = null;
+const storeReady = new Promise(r=>{ resolveStoreReady = r; });
+
+/* Si al guardar todavía se está leyendo el Sheet, se espera a que conecte y
+   recién ahí se guarda. Si no pudo conectar, se avisa y no se guarda solo en
+   este navegador. Devuelve true si hay que cancelar el guardado. */
+async function waitForSheet(){
+  if(dbMode==="checking"){
+    const lbl = document.getElementById("sync-label");
+    if(lbl) lbl.textContent = "Conectando… se guarda apenas conecte";
+    await storeReady;
+  }
+  if(gasConfigured() && dbMode!=="live"){
+    alert("No se pudo conectar con el Sheet, así que el cambio no se guardó. Recargá la página y probá de nuevo.");
+    render();
+    return true;
+  }
+  return false;
 }
 
-function setEstado(t, estado){
-  if(connecting()) return;
+async function setEstado(t, estado){
+  if(await waitForSheet()) return;
   if(t.source==="custom") return patchCustomTask(t.id, {estado});
   if(sheetLive()) return sheetTaskEdit(t, {estado});
   return patchSeedOverride(t.id, {estado});
@@ -668,7 +682,7 @@ function setLink(t, link){
 /* Guarda la edición de cualquier tarea (solo los campos que cambiaron).
    Sin Sheet conectado, las tareas base pasan a una copia local editable. */
 async function saveTaskEdits(t, fields){
-  if(connecting()) return;
+  if(await waitForSheet()) return;
   if(t.source==="custom") return patchCustomTask(t.id, fields);
   if(sheetLive()) return sheetTaskEdit(t, fields);
   const base = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio,
@@ -678,7 +692,7 @@ async function saveTaskEdits(t, fields){
 }
 
 async function addCustomTask(data){
-  if(connecting()) return;
+  if(await waitForSheet()) return;
   if(sheetLive()){
     customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
     render();
@@ -707,7 +721,7 @@ async function deleteCustomTask(taskId){
 /* Se muestra al instante y después se guarda: sin esto, en modo
    sincronizado no aparecía nada hasta recargar la página. */
 async function addMeeting(data){
-  if(connecting()) return;
+  if(await waitForSheet()) return;
   if(sheetLive()){
     RAW.etapa1.push({fecha:data.fecha, hs:data.duracion, tarea:data.tarea||"Encuentro I Estado del proceso de trabajo",
       responsable:data.responsable, estado:"Finalizado", resultado:data.resumen, obs:null});
@@ -743,7 +757,7 @@ function deleteSheetMeeting(e){
 }
 
 async function addNote(text, author){
-  if(connecting()) return;
+  if(await waitForSheet()) return;
   const note = {id:"n"+Date.now(), text, author, createdAt:new Date().toISOString()};
   notesState.unshift(note);
   render();
@@ -786,15 +800,19 @@ async function gasRead_(){
   const sep = GAS_CFG.url.indexOf("?")>=0 ? "&" : "?";
   // Google a veces responde con una página de error pasajera: se reintenta.
   let lastErr = null;
-  for(let intento=0; intento<4; intento++){
+  for(let intento=0; intento<5; intento++){
+    const ctrl = new AbortController();
+    const timer = setTimeout(()=>ctrl.abort(), 30000);
     try{
-      const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token));
+      const res = await fetch(GAS_CFG.url + sep + "action=read&token=" + encodeURIComponent(GAS_CFG.token), {signal: ctrl.signal});
       const json = await res.json();
       if(!json.ok) throw new Error(json.error || "error leyendo el Sheet");
       return json;
     }catch(e){
       lastErr = e;
-      await new Promise(r=>setTimeout(r, 1500*(intento+1)));
+      await new Promise(r=>setTimeout(r, 1000*(intento+1)));
+    }finally{
+      clearTimeout(timer);
     }
   }
   throw lastErr;

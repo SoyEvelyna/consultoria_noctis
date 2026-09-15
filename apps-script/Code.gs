@@ -24,7 +24,9 @@ var ACCESS_TOKEN = "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU";
 
 /* Id de la Hoja de cálculo de Google "Noctis I Tablero: PLAN DE TRABAJO". */
 var SHEET_ID = "1ELzLOSN7QbpKgmJ64WXPWhf_Yc1qR1h0UVcutlurhTI";
-function ss_() { return SpreadsheetApp.openById(SHEET_ID); }
+/* Se abre una sola vez por pedido: abrirla en cada lectura hacía lenta la carga. */
+var SS_ = null;
+function ss_() { return SS_ || (SS_ = SpreadsheetApp.openById(SHEET_ID)); }
 
 var SHEET_ETAPA1 = "01 I Plan de trabajo";
 var SHEET_PROCESO = "02 I Proceso de trabajo";
@@ -303,11 +305,14 @@ function migrateOverride_(oldId, newId, fields) {
    LECTURA
    ===================================================================== */
 
+/* La hoja 02 y la 01 se leen una sola vez y se reutilizan en todo el pedido. */
 function readSeed_() {
-  var proceso = readProceso_();
-  proceso.etapa1 = readEtapa1_();
+  var L = procesoLayout_();
+  var T = etapa1Table_();
+  var proceso = readProceso_(L);
+  proceso.etapa1 = readEtapa1_(T);
   proceso.metricas = readMetricas_();
-  proceso.opciones = readOpciones_();
+  proceso.opciones = readOpciones_(L, T);
   return proceso;
 }
 
@@ -327,17 +332,17 @@ function dropdownValues_(cell) {
 
 /* Opciones de los desplegables, para que la web ofrezca exactamente las mismas:
    si se suma un responsable o un área en la Hoja, aparece en la web al recargar. */
-function readOpciones_() {
+function readOpciones_(L, T) {
   var out = { responsable: [], area: [], responsableReuniones: [] };
   try {
-    var L = procesoLayout_();
+    L = L || procesoLayout_();
     var row = L.tasks.length ? L.tasks[0].row : L.header + 2;
     ["responsable", "area"].forEach(function (k) {
       if (L.cols[k] !== undefined) out[k] = dropdownValues_(L.sheet.getRange(row, L.cols[k] + 1));
     });
   } catch (err) {}
   try {
-    var T = etapa1Table_();
+    T = T || etapa1Table_();
     out.responsableReuniones = dropdownValues_(T.sheet.getRange(T.header + 2, 4));
   } catch (err2) {}
   return out;
@@ -354,8 +359,8 @@ function etapa1Table_() {
   return { sheet: sheet, values: values, header: header, last: last };
 }
 
-function readEtapa1_() {
-  var T = etapa1Table_();
+function readEtapa1_(T) {
+  T = T || etapa1Table_();
   var out = [];
   for (var r = T.header + 1; r <= T.last; r++) {
     var row = T.values[r];
@@ -410,8 +415,8 @@ function procesoLayout_() {
   return { sheet: sheet, values: values, cols: cols, header: header, tasks: tasks, lastTaskRow: last + 1, get: get };
 }
 
-function readProceso_() {
-  var L = procesoLayout_();
+function readProceso_(L) {
+  L = L || procesoLayout_();
   var values = L.values;
   var objetivoRow = findLabelRow_(values, "OBJETIVO 1");
   var prioridadesRow = findLabelRow_(values, "PRIORIDADES");
