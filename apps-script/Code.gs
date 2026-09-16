@@ -876,6 +876,7 @@ function htmlResumen_(r, hoy, prueba) {
 /* Para ejecutar a mano desde el editor (el menú no muestra funciones con "_").
    El resumen sale desde la cuenta dueña del proyecto que lo ejecuta: se usa
    una copia de este archivo en un proyecto de hola@soyevelyna.com (sin Web App). */
+function quienEnvia() { Logger.log(JSON.stringify({ efectivo: Session.getEffectiveUser().getEmail(), activo: Session.getActiveUser().getEmail() })); }
 function probarResumenAhora() { Logger.log(JSON.stringify(probarResumen_())); }
 function activarResumenDiario() { Logger.log(JSON.stringify(activarResumen_())); }
 function desactivarResumenDiario() { Logger.log(JSON.stringify(desactivarResumen_())); }
