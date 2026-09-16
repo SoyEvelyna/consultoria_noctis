@@ -891,9 +891,9 @@ function enviarResumenDiario() {
     var hoy = Utilities.formatDate(new Date(), RESUMEN_ZONA, "dd/MM/yyyy");
     MailApp.sendEmail({
       to: RESUMEN_DESTINATARIOS.join(","),
-      subject: "Noctis · Resumen del día " + hoy + " (" + r.total + (r.total === 1 ? " cambio)" : " cambios)"),
+      subject: "NOCTIS I Tablero de trabajo: Resumen del día " + hoy + " (" + r.total + (r.total === 1 ? " cambio)" : " cambios)"),
       htmlBody: htmlResumen_(r, hoy, false),
-      name: "Tablero Noctis"
+      name: "NOCTIS I Tablero de trabajo"
     });
   }
   guardarFoto_(ahora);
@@ -908,9 +908,9 @@ function probarResumen_() {
   var hoy = Utilities.formatDate(new Date(), RESUMEN_ZONA, "dd/MM/yyyy");
   MailApp.sendEmail({
     to: RESUMEN_PRUEBA,
-    subject: "[Prueba] Noctis · Resumen del día " + hoy + " (" + r.total + (r.total === 1 ? " cambio)" : " cambios)"),
+    subject: "[Prueba] NOCTIS I Tablero de trabajo: Resumen del día " + hoy + " (" + r.total + (r.total === 1 ? " cambio)" : " cambios)"),
     htmlBody: htmlResumen_(r, hoy, true),
-    name: "Tablero Noctis"
+    name: "NOCTIS I Tablero de trabajo"
   });
   return { enviadoA: RESUMEN_PRUEBA, cambios: r.total, cuotaRestante: MailApp.getRemainingDailyQuota() };
 }
