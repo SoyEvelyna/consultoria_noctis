@@ -123,6 +123,7 @@ a{color:inherit}
 .prio-item .n{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.1em}
 .prio-item h4{font-size:16px;text-transform:uppercase;margin:6px 0 8px;letter-spacing:-.01em}
 .prio-item p{font-size:13.5px;line-height:1.5;color:var(--muted)}
+.prio-item .prio-avance{margin-top:14px;display:flex;flex-direction:column;gap:7px}
 
 /* ===== FILTER BAR ===== */
 .filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px;padding:14px;border:2px solid var(--ink);background:var(--card)}
@@ -150,6 +151,14 @@ a{color:inherit}
 .group-head h3{font-size:19px;text-transform:uppercase;letter-spacing:-.01em}
 .group-head .count{font-size:12px;color:var(--muted);font-weight:700}
 .group-head .swatch{width:14px;height:14px;flex:none;background:var(--signal)}
+.group-head .gh-prog{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:var(--muted)}
+.group-head .gh-prog .bar{width:120px;height:8px;background:var(--paper);border:1.5px solid var(--ink);overflow:hidden}
+.group-head .gh-prog .bar i{display:block;height:100%;background:var(--signal)}
+.group-head .gh-prog b{color:var(--ink)}
+@media (max-width:600px){.group-head .gh-prog .bar{display:none}}
+.task-row .col-area{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
+.tk-prio{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 7px;border:1.5px solid var(--ink);color:var(--ink)}
+.tk-prio.-tr{border-color:var(--rule);color:var(--muted)}
 
 /* ===== TASK LIST ===== */
 .task-list{display:flex;flex-direction:column;border-top:2px solid var(--ink)}
@@ -409,6 +418,21 @@ function buildFaseMeta_(){
   FASE_META[4] = {label:"Transversal", sub:"Acompaña a todas las prioridades"};
 }
 buildFaseMeta_();
+
+/* Avance de una prioridad: cuántas de sus tareas ya están finalizadas.
+   Se mide siempre sobre el tablero completo, no sobre lo filtrado, para que
+   el porcentaje signifique lo mismo en el dashboard y en cada listado. */
+function avanceFase(n){
+  const items = trackedTasks().filter(t=>t.fase===n);
+  const done = items.filter(t=>currentEstado(t)==="Completado").length;
+  return { total: items.length, done: done, pct: items.length ? Math.round((done/items.length)*100) : 0 };
+}
+
+/* La etiqueta corta que lleva cada tarea para saber de qué prioridad es. */
+function prioTag(t){
+  if(t.fase===0) return null;
+  return (t.fase>=1 && t.fase<=3) ? "P"+t.fase : "Transversal";
+}
 
 /* =====================================================================
    NORMALIZACIÓN Y CLASIFICACIÓN
@@ -1245,12 +1269,18 @@ function renderDashboard(root){
         <p>${OBJETIVO}</p>
       </div>
       <div class="prio-list">
-        ${PRIORIDADES.map(p=>`
+        ${PRIORIDADES.map(p=>{
+          const a = avanceFase(Number(p.n));
+          return `
           <div class="prio-item">
             <span class="n">Prioridad ${p.n}</span>
             <h4>${p.tt}</h4>
             <p>${p.desc}</p>
-          </div>`).join("")}
+            <div class="prio-avance">
+              <div class="fase-bar"><i style="width:${a.pct}%"></i></div>
+              <div class="fase-nums"><span><b>${a.done}</b>/${a.total} listas</span><span><b>${a.pct}%</b></span></div>
+            </div>
+          </div>`;}).join("")}
       </div>
     </div>
 
@@ -1348,7 +1378,7 @@ function taskRow(t){
   row.className = "task-row" + (overdue ? " -overdue" : "");
   const stClass = estadoClass(estado);
   row.innerHTML = `
-    <div class="col-area"><span class="tk-tema">${t.area || "—"}</span></div>
+    <div class="col-area">${prioTag(t) ? `<span class="tk-prio${t.fase>3?" -tr":""}">${prioTag(t)}</span>` : ""}<span class="tk-tema">${t.area || "—"}</span></div>
     <div class="col-tema"><span class="tk-tema">${t.tema || "—"}${t.subfase?" · "+t.subfase:""}</span></div>
     <div class="col-tarea"><span class="tk-tarea">${t.tarea}${overdue?'<span class="tk-flags"><span class="flag">Vencida</span></span>':''}${t.source==="custom"&&!t.edited?'<span class="custom-tag">Nueva</span>':''}${link?' 🔗':''}</span></div>
     <div class="col-resp"><span class="tk-resp">${respLabel(t.responsable)}</span></div>
@@ -1392,7 +1422,7 @@ function taskListHead(){
   head.style.borderBottom = "2px solid var(--ink)";
   head.style.paddingBottom = "8px";
   head.innerHTML = `
-    <div class="micro">Área</div><div class="micro">Tema</div><div class="micro">Tarea</div><div class="micro">Responsable</div>
+    <div class="micro">Prioridad · Área</div><div class="micro">Tema</div><div class="micro">Tarea</div><div class="micro">Responsable</div>
     <div class="micro">Fechas</div><div class="micro">Estado</div><div class="micro">Observaciones</div><div></div>
   `;
   return head;
@@ -1442,7 +1472,9 @@ function renderTaskGroups(root, pool, emptyMsg){
     if(inFase.length===0) return;
     const gh = document.createElement("div");
     gh.className = "group-head";
-    gh.innerHTML = `<span class="swatch"></span><h3>${FASE_META[fn].label}</h3><span class="count">${inFase.length} tareas</span>`;
+    const av = avanceFase(fn);
+    gh.innerHTML = `<span class="swatch"></span><h3>${FASE_META[fn].label}</h3><span class="count">${inFase.length} tareas</span>`
+      + `<span class="gh-prog"><span class="bar"><i style="width:${av.pct}%"></i></span><span><b>${av.done}</b>/${av.total} listas · <b>${av.pct}%</b></span></span>`;
     list.appendChild(gh);
     list.appendChild(taskListHead());
     inFase.forEach(t=> list.appendChild(taskRow(t)));
@@ -1670,9 +1702,15 @@ function renderNotas(root){
     <div class="strategy-block" style="margin-bottom:0">
       <div class="obj-head"><span class="micro">Objetivo del trimestre</span><p>${OBJETIVO}</p></div>
       <div class="prio-list" style="grid-template-columns:1fr">
-        ${PRIORIDADES.map(p=>`<div class="prio-item" style="border-right:none;border-bottom:2px solid var(--ink)">
+        ${PRIORIDADES.map(p=>{
+          const a = avanceFase(Number(p.n));
+          return `<div class="prio-item" style="border-right:none;border-bottom:2px solid var(--ink)">
             <span class="n">Prioridad ${p.n}</span><h4>${p.tt}</h4><p>${p.desc}</p>
-          </div>`).join("")}
+            <div class="prio-avance">
+              <div class="fase-bar"><i style="width:${a.pct}%"></i></div>
+              <div class="fase-nums"><span><b>${a.done}</b>/${a.total} listas</span><span><b>${a.pct}%</b></span></div>
+            </div>
+          </div>`;}).join("")}
       </div>
     </div>
   `;
