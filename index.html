@@ -389,6 +389,10 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
      incluidos en este archivo — no se rompe nada por dejarlo así.
      ============================================================ -->
 <script>
+  /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
+     se queda con una copia vieja: la página compara este sello contra el del
+     servidor y, si quedó atrás, se recarga sola una vez. */
+  window.APP_VERSION = "20261006-0953";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -576,6 +580,33 @@ function mk(base, source, fase){
   return Object.assign({id, source, fase: fase!==undefined?fase:classifyFase(base), estadoOriginal}, base);
 }
 let TASKS = [];
+/* Lo que se acaba de editar, guardado unos minutos. La relectura del Sheet a
+   veces llega atrasada (Google responde lento o devuelve una copia vieja) y
+   sin esto el cambio se ve volver atrás solo. Se indexa por tema+tarea porque
+   el id cambia cuando la tarea pasa a Finalizadas. */
+const RECIENTES_MS = 3 * 60 * 1000;
+const recientes = new Map();
+function claveTarea_(t){ return String(t.tema||"") + "|" + String(t.tarea||""); }
+function recordarCambio_(t, fields){
+  const previo = recientes.get(claveTarea_(t));
+  recientes.set(claveTarea_(t), {fields: Object.assign({}, previo && previo.fields, fields), ts: Date.now()});
+}
+function aplicarRecientes_(){
+  const ahora = Date.now();
+  recientes.forEach((v, k)=>{ if(ahora - v.ts > RECIENTES_MS) recientes.delete(k); });
+  if(!recientes.size) return;
+  TASKS.forEach(t=>{
+    if(t.source==="etapa1") return;
+    const r = recientes.get(claveTarea_(t));
+    if(!r) return;
+    Object.keys(r.fields).forEach(k=>{
+      if(r.fields[k]===undefined) return;
+      t[k] = r.fields[k];
+      if(k==="estado") t.estadoOriginal = ESTADO_A_SHEET[r.fields[k]] || r.fields[k];
+    });
+  });
+}
+
 function rebuildTasks_(){
   idSeen = {};
   TASKS = [];
@@ -596,6 +627,7 @@ function rebuildTasks_(){
     const tarea = tema ? (tema+" — "+descClean) : descClean;
     TASKS.push(mk({area, tema, tarea, subfase, responsable:null, inicio:null, tiempo:null, cierre:null, estado:null, obs:null}, "backlog"));
   });
+  aplicarRecientes_();
 }
 rebuildTasks_(); // construye TASKS a partir de RAW, incluido en este archivo
 
@@ -703,6 +735,13 @@ function updateSyncLabel(){
 }
 
 async function sheetWrite(action, payload){
+  /* La hoja tiene sus propias palabras para el estado. Si se le manda el
+     nombre interno ("Por hacer"), su desplegable lo rechaza y el estado
+     termina anotado en Observaciones en vez de en su columna. */
+  if(payload && payload.fields && payload.fields.estado){
+    payload = Object.assign({}, payload, {fields: Object.assign({}, payload.fields,
+      {estado: ESTADO_A_SHEET[payload.fields.estado] || payload.fields.estado})});
+  }
   const item = {id: "p" + Date.now() + Math.random().toString(36).slice(2,6), action, payload};
   guardarPendientes(leerPendientes().concat([item]));
   sheetPending++;
@@ -712,10 +751,30 @@ async function sheetWrite(action, payload){
     if(!gasData) await firstRead;
     // Se saca de pendientes justo antes de enviarlo, para no mandarlo dos veces.
     guardarPendientes(leerPendientes().filter(x=>x.id!==item.id));
-    return gasWrite_(action, payload);
+    let res;
+    try{
+      res = await gasWrite_(action, payload);
+    }catch(e){
+      if(esIdViejo_(e) && payload && payload.id){
+        res = await reintentarConIdNuevo_(action, payload);
+      } else if((e.soft || e.reintentable) && (action === "addTask" || action === "addMeetingSheet")){
+        res = await reintentarAlta_(action, payload);
+      }
+      if(!res) throw e;
+    }
+    return res;
   }).catch(e=>{
     console.error(e);
-    if(!e.soft) alert("No se pudo guardar en el Sheet: " + e.message);
+    // Solo vuelve a la cola lo que puede andar en otro momento. Un error
+    // definitivo repetido en cada visita sería un cartel eterno.
+    const transitorio = !!(e.soft || e.reintentable);
+    if(transitorio && ACCIONES_REPETIBLES.includes(action)){
+      guardarPendientes(leerPendientes().concat([item]));
+    }
+    if(!e.soft){
+      alert("No se pudo guardar en el Sheet: " + e.message +
+        (transitorio ? "\n\nQueda en cola y se reintenta solo." : ""));
+    }
   });
   sheetQueue = job;
   await job;
@@ -731,6 +790,7 @@ window.addEventListener("beforeunload", (e)=>{
 });
 
 function sheetTaskEdit(t, fields){
+  recordarCambio_(t, fields);
   const local = TASKS.find(x=>x.id===t.id);
   if(local){
     Object.assign(local, fields);
@@ -947,7 +1007,77 @@ async function gasRefresh_(){
 
 /* Content-Type por defecto (text/plain) a propósito: evita el preflight
    CORS, que los Web Apps de Apps Script no responden. */
+/* Si el navegador sirvió una copia vieja de la página, se recarga una sola
+   vez por versión nueva. Sin esto los arreglos publicados no llegan hasta que
+   alguien hace un refresco forzado. */
+async function chequearVersion_(){
+  try{
+    const r = await fetch(location.pathname + "?ts=" + Date.now(), {cache: "no-store"});
+    const txt = await r.text();
+    const m = txt.match(/window\.APP_VERSION = "([^"]+)"/);
+    if(!m || m[1] === window.APP_VERSION) return;
+    if(sessionStorage.getItem(localKey("version-recargada")) === m[1]) return;
+    sessionStorage.setItem(localKey("version-recargada"), m[1]);
+    location.reload();
+  }catch(e){}
+}
+
+/* Acciones que se pueden repetir sin duplicar nada: solo esas se reintentan. */
+const ACCIONES_REPETIBLES = ["updateTask","setOverride","deleteTask","deleteNote","deleteMeetingSheet"];
+
+/* Los ids se calculan del contenido de la fila, así que cambian si alguien
+   edita el texto de la tarea o la mueve. Cuando el backend dice que no la
+   encuentra, se relee la hoja y se reintenta una sola vez con el id nuevo de
+   esa misma tarea, en vez de hacerle repetir el cambio a mano. */
+function esIdViejo_(e){ return /No encuentro esa tarea/i.test(String(e && e.message || "")); }
+
+async function reintentarConIdNuevo_(action, payload){
+  const anterior = TASKS.find(x=>x.id===payload.id);
+  const clave = anterior ? claveTarea_(anterior) : null;
+  try{ await gasRefresh_(); }catch(e){ return null; }
+  if(!clave) return null;
+  const ahora = TASKS.find(x=>x.source!=="etapa1" && claveTarea_(x)===clave);
+  if(!ahora || ahora.id===payload.id) return null;
+  return gasWrite_(action, Object.assign({}, payload, {id: ahora.id}));
+}
+
+/* Crear no se puede repetir a ciegas: duplicaría la fila. Cuando el alta se
+   corta a mitad de camino (Google lento o sin respuesta) se relee la hoja y
+   se mira si quedó cargada; recién si no está, se vuelve a mandar. */
+async function reintentarAlta_(action, payload){
+  try{ await gasRefresh_(); }catch(e){ return null; }
+  if(action === "addTask"){
+    const f = payload.fields || {};
+    const ya = TASKS.some(t=> (t.source==="iniciativa" || t.source==="finalizado")
+      && String(t.tema||"") === String(f.tema||"") && String(t.tarea||"") === String(f.tarea||""));
+    return ya ? {yaEstaba:true} : gasWrite_(action, payload);
+  }
+  if(action === "addMeetingSheet"){
+    const ya = (RAW.etapa1||[]).some(m=> m.fecha === payload.fecha
+      && String(m.resultado||"") === String(payload.resumen||""));
+    return ya ? {yaEstaba:true} : gasWrite_(action, payload);
+  }
+  return null;
+}
+
+/* Google a veces devuelve una página de error o un cuerpo vacío. Cuando el
+   cuerpo llega vacío el backend ve un POST sin token y contesta "token
+   inválido", aunque el token esté bien. Reintentar alcanza. */
 async function gasWrite_(action, payload){
+  const intentos = ACCIONES_REPETIBLES.includes(action) ? 3 : 1;
+  let ultimo = null;
+  for(let i=1; i<=intentos; i++){
+    try{ return await gasWriteUna_(action, payload); }
+    catch(e){
+      ultimo = e;
+      if(i===intentos || !e.reintentable) break;
+      await new Promise(r=>setTimeout(r, 1200*i));
+    }
+  }
+  throw ultimo;
+}
+
+async function gasWriteUna_(action, payload){
   const ctrl = new AbortController();
   const timer = setTimeout(()=>ctrl.abort(), 45000);
   let res;
@@ -961,6 +1091,7 @@ async function gasWrite_(action, payload){
     // Sin respuesta: el cambio pudo guardarse igual; la relectura muestra lo que quedó.
     const err = new Error("sin respuesta de Google en "+action);
     err.soft = true;
+    err.reintentable = true;
     throw err;
   }finally{
     clearTimeout(timer);
@@ -972,9 +1103,15 @@ async function gasWrite_(action, payload){
   catch(e){
     const err = new Error("respuesta no válida de Google en "+action);
     err.soft = true;
+    err.reintentable = true;
     throw err;
   }
-  if(!json.ok) throw new Error(json.error || ("error en "+action));
+  if(!json.ok){
+    const err = new Error(json.error || ("error en "+action));
+    // Cuerpo vacío del lado de Google: el backend no vio el token. Se reintenta.
+    if(/token inválido/i.test(err.message)) err.reintentable = true;
+    throw err;
+  }
   return json.result;
 }
 
@@ -1066,6 +1203,7 @@ async function initSheetStore_(){
   notesCol = gasCollection_("notes");
   customCol = gasCollection_("customTasks");
   meetingsCol = gasCollection_("meetings");
+  chequearVersion_();
   // Cambios que quedaron sin enviar en una visita anterior.
   const previos = leerPendientes();
   if(previos.length){
