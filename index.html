@@ -175,6 +175,7 @@ a{color:inherit}
 }
 .tk-tema{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:3px}
 .tk-tarea{font-size:14.5px;line-height:1.35;font-weight:500}
+.tk-num{display:inline-block;font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .tk-flags{display:inline-flex;gap:6px;margin-left:8px;vertical-align:middle}
 .flag{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:1.5px solid var(--hazard);color:var(--hazard)}
 .resp-chip{
@@ -393,7 +394,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261006-1244";
+  window.APP_VERSION = "20261006-1319";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1518,7 +1519,7 @@ function renderFilterBar(root, opts){
   root.appendChild(wrap);
 }
 
-function taskRow(t){
+function taskRow(t, n){
   const row = document.createElement("div");
   const estado = currentEstado(t);
   const overdue = isOverdue(t, estado);
@@ -1526,7 +1527,7 @@ function taskRow(t){
   row.className = "task-row" + (overdue ? " -overdue" : "");
   const stClass = estadoClass(estado);
   row.innerHTML = `
-    <div class="col-area">${prioTag(t) ? `<span class="tk-prio${t.fase>3?" -tr":""}">${prioTag(t)}</span>` : ""}<span class="tk-tema">${t.area || "—"}</span></div>
+    <div class="col-area">${n ? '<span class="tk-num">'+n+'</span>' : ''}<span class="tk-tema">${t.area || "—"}</span></div>
     <div class="col-tema"><span class="tk-tema">${t.tema || "—"}${t.subfase?" · "+t.subfase:""}</span></div>
     <div class="col-tarea"><span class="tk-tarea">${t.tarea}${overdue?'<span class="tk-flags"><span class="flag">Vencida</span></span>':''}${t.source==="custom"&&!t.edited?'<span class="custom-tag">Nueva</span>':''}${link?' 🔗':''}</span></div>
     <div class="col-resp"><span class="tk-resp">${respLabel(t.responsable)}</span></div>
@@ -1570,7 +1571,7 @@ function taskListHead(){
   head.style.borderBottom = "2px solid var(--ink)";
   head.style.paddingBottom = "8px";
   head.innerHTML = `
-    <div class="micro">Prioridad · Área</div><div class="micro">Tema</div><div class="micro">Tarea</div><div class="micro">Responsable</div>
+    <div class="micro">N° · Área</div><div class="micro">Tema</div><div class="micro">Tarea</div><div class="micro">Responsable</div>
     <div class="micro">Fechas</div><div class="micro">Estado</div><div class="micro">Observaciones</div><div></div>
   `;
   return head;
@@ -1615,6 +1616,7 @@ function renderTaskGroups(root, pool, emptyMsg){
     return;
   }
 
+  let orden = 0;
   FASE_IDS.forEach(fn=>{
     const inFase = tasks.filter(t=>t.fase===fn).sort((a,b)=> (dueDateOf(a)||"9999").localeCompare(dueDateOf(b)||"9999"));
     if(inFase.length===0) return;
@@ -1625,7 +1627,7 @@ function renderTaskGroups(root, pool, emptyMsg){
       + `<span class="gh-prog"><span class="bar"><i style="width:${av.pct}%"></i></span><span><b>${av.done}</b>/${av.total} listas · <b>${av.pct}%</b></span></span>`;
     list.appendChild(gh);
     list.appendChild(taskListHead());
-    inFase.forEach(t=> list.appendChild(taskRow(t)));
+    inFase.forEach(t=> list.appendChild(taskRow(t, ++orden)));
   });
 }
 
