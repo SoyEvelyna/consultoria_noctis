@@ -361,6 +361,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   </header>
   <div class="cover-meta">
     <span class="sync-chip"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></span>
+    <button class="btn-secondary btn-sm" id="refresh-btn" title="Vuelve a leer el Sheet">↻ Actualizar</button>
     <button class="btn-secondary btn-sm" id="export-btn">⬇ Exportar a Excel</button>
   </div>
 
@@ -392,7 +393,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261006-0953";
+  window.APP_VERSION = "20261006-1244";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -2148,6 +2149,26 @@ async function exportToExcel(btn){
   }
 }
 document.getElementById("export-btn").addEventListener("click", (e)=> exportToExcel(e.currentTarget));
+
+/* Trae lo último del Sheet sin recargar la página: sirve cuando alguien del
+   equipo cargó algo de su lado, o cuando Google tardó y la pantalla quedó
+   atrasada. El botón vive fuera de lo que se vuelve a dibujar, así que no se
+   pierde al refrescar. */
+const refreshBtn = document.getElementById("refresh-btn");
+refreshBtn.addEventListener("click", async ()=>{
+  if(refreshBtn.disabled) return;
+  const texto = refreshBtn.textContent;
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = "Actualizando…";
+  try{
+    if(gasConfigured()) await gasRefresh_(); else render();
+    refreshBtn.textContent = "Actualizado";
+  }catch(e){
+    console.error(e);
+    refreshBtn.textContent = "No se pudo";
+  }
+  setTimeout(()=>{ refreshBtn.textContent = texto; refreshBtn.disabled = false; }, 1600);
+});
 
 /* =====================================================================
    INIT
