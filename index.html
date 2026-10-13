@@ -394,7 +394,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261013-1418";
+  window.APP_VERSION = "20261013-1433";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1867,19 +1867,9 @@ function renderNotas(root){
   `;
   grid.appendChild(left);
 
-  /* El título de cada prioridad se escribe en la hoja de proceso desde acá.
-     La descripción que haya debajo en la misma celda no se toca. */
+  /* Título y detalle de cada prioridad se escriben en la hoja de proceso. */
   left.querySelectorAll("[data-prio]").forEach(btn=>{
-    btn.onclick = ()=>{
-      const n = Number(btn.getAttribute("data-prio"));
-      const p = PRIORIDADES.find(x=>Number(x.n)===n);
-      const texto = prompt("Prioridad "+n+" del trimestre:", (p && p.tt) || "");
-      if(texto===null) return;
-      if(p) p.tt = texto.trim(); else PRIORIDADES.push({n, tt:texto.trim(), desc:""});
-      buildFaseMeta_();
-      render();
-      if(sheetMode()) sheetWrite("setPrioridad", {n, texto: texto.trim()});
-    };
+    btn.onclick = ()=> openPrioridadModal(Number(btn.getAttribute("data-prio")));
   });
 
   const right = document.createElement("div");
@@ -2002,6 +1992,40 @@ function openDetailModal(t){
     if(t.source==="custom") deleteCustomTask(t.id);
     else if(sheetMode()) sheetDeleteTask(t);
     else patchSeedOverride(t.id, {hidden:true});
+    closeModal();
+  };
+  abrirModal();
+}
+
+/* En la hoja, el título y el detalle de una prioridad viven en la misma
+   celda: la primera línea es el título y el resto la explicación. Por eso se
+   editan juntos acá y se mandan por separado. */
+function openPrioridadModal(n){
+  const p = PRIORIDADES.find(x=>Number(x.n)===n) || {n, tt:"", desc:""};
+  const box = document.getElementById("modal-box");
+  box.innerHTML = `
+    <button class="modal-close" aria-label="Cerrar">&times;</button>
+    <h3>Prioridad ${n} del trimestre</h3>
+    <div class="field"><label class="flabel">Título *</label>
+      <input type="text" id="pr-tt" value="${escHtml(p.tt||"")}" placeholder="Ej: Tener control del nuevo mix de pacientes"></div>
+    <div class="field"><label class="flabel">Detalle</label>
+      <textarea id="pr-desc" rows="4" placeholder="Lo que explica esa prioridad, debajo del titular">${escHtml(p.desc||"")}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="pr-save">Guardar</button>
+      <button class="btn-secondary" id="pr-cancel">Cancelar</button>
+    </div>
+  `;
+  box.querySelector(".modal-close").onclick = closeModal;
+  box.querySelector("#pr-cancel").onclick = closeModal;
+  box.querySelector("#pr-save").onclick = ()=>{
+    const tt = box.querySelector("#pr-tt").value.trim();
+    if(flagMissing(box, [[box.querySelector("#pr-tt"),"el título de la prioridad"]], box.querySelector(".modal-actions"))) return;
+    const desc = box.querySelector("#pr-desc").value.trim();
+    const actual = PRIORIDADES.find(x=>Number(x.n)===n);
+    if(actual){ actual.tt = tt; actual.desc = desc; } else PRIORIDADES.push({n, tt, desc});
+    buildFaseMeta_();
+    render();
+    if(sheetMode()) sheetWrite("setPrioridad", {n, texto: tt, desc: desc});
     closeModal();
   };
   abrirModal();

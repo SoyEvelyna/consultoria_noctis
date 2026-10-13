@@ -101,7 +101,7 @@ function doPost(e) {
 
 function handleAction_(action, p) {
   switch (action) {
-    case "setPrioridad": return setPrioridad_(p.n, p.texto);
+    case "setPrioridad": return setPrioridad_(p.n, p.texto, p.desc);
     case "setOverride": return setOverride_(p.taskId, p.patch || {});
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
       Object.assign({ id: "n" + Date.now(), createdAt: nowIso_() }, p));
@@ -426,10 +426,11 @@ function procesoLayout_() {
   return { sheet: sheet, values: values, cols: cols, header: header, tasks: tasks, lastTaskRow: last + 1, get: get };
 }
 
-/* Reescribe el título de una prioridad del trimestre en la hoja de proceso.
-   El número va en la columna A y el texto en la B; si la celda tiene más de
-   una línea, las siguientes son la descripción y se conservan. */
-function setPrioridad_(n, texto) {
+/* Reescribe una prioridad del trimestre en la hoja de proceso. El número va
+   en la columna A y el texto en la B, donde la primera línea es el título y
+   las siguientes la explicación. Si no se manda desc, la explicación que
+   hubiera se conserva. */
+function setPrioridad_(n, texto, desc) {
   var num = Number(n);
   if (!(num >= 1 && num <= 9)) throw new Error("La prioridad tiene que ser un número del 1 al 9");
   var L = procesoLayout_();
@@ -450,6 +451,9 @@ function setPrioridad_(n, texto) {
   var actual = cell_(values[fila], 1);
   var lineas = String(actual === null ? "" : actual).split(/\n/);
   lineas[0] = String(texto || "");
+  if (desc !== undefined && desc !== null) {
+    lineas = [lineas[0]].concat(String(desc).split(/\n/));
+  }
   var nuevo = lineas.join("\n").replace(/\n+$/, "");
   L.sheet.getRange(fila + 1, 2).setValue(nuevo);
   return { n: num, texto: lineas[0], guardado: nuevo };
