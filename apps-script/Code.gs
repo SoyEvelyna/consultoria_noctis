@@ -101,6 +101,7 @@ function doPost(e) {
 
 function handleAction_(action, p) {
   switch (action) {
+    case "setPrioridad": return setPrioridad_(p.n, p.texto);
     case "setOverride": return setOverride_(p.taskId, p.patch || {});
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
       Object.assign({ id: "n" + Date.now(), createdAt: nowIso_() }, p));
@@ -423,6 +424,35 @@ function procesoLayout_() {
     last = tr;
   }
   return { sheet: sheet, values: values, cols: cols, header: header, tasks: tasks, lastTaskRow: last + 1, get: get };
+}
+
+/* Reescribe el título de una prioridad del trimestre en la hoja de proceso.
+   El número va en la columna A y el texto en la B; si la celda tiene más de
+   una línea, las siguientes son la descripción y se conservan. */
+function setPrioridad_(n, texto) {
+  var num = Number(n);
+  if (!(num >= 1 && num <= 9)) throw new Error("La prioridad tiene que ser un número del 1 al 9");
+  var L = procesoLayout_();
+  var values = L.values;
+  var prioridadesRow = findLabelRow_(values, "PRIORIDADES");
+  var iniciativasRow = findLabelRow_(values, "INICIATIVAS");
+  if (prioridadesRow === -1) throw new Error("No encuentro el bloque PRIORIDADES en la hoja de proceso");
+
+  var fin = iniciativasRow === -1 ? L.header : iniciativasRow;
+  var fila = -1;
+  for (var r = prioridadesRow + 1; r < fin; r++) {
+    var v = cell_(values[r], 0);
+    if (v === null || isNaN(Number(v))) continue;
+    if (Number(v) === num) { fila = r; break; }
+  }
+  if (fila === -1) throw new Error("No encuentro la prioridad " + num + " en el bloque PRIORIDADES");
+
+  var actual = cell_(values[fila], 1);
+  var lineas = String(actual === null ? "" : actual).split(/\n/);
+  lineas[0] = String(texto || "");
+  var nuevo = lineas.join("\n").replace(/\n+$/, "");
+  L.sheet.getRange(fila + 1, 2).setValue(nuevo);
+  return { n: num, texto: lineas[0], guardado: nuevo };
 }
 
 function readProceso_(L) {
