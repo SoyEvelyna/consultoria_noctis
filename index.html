@@ -28,7 +28,9 @@ body{
 }
 img{display:block;max-width:100%}
 button,select,input,textarea{font-family:inherit;color:inherit}
-.cond{font-weight:900;text-transform:uppercase;font-stretch:condensed;letter-spacing:var(--tracking-display);line-height:.9}
+.cond{font-weight:900;text-transform:uppercase;font-stretch:condensed;letter-spacing:var(--tracking-display);line-height:.85}
+/* Resaltado: el color va sobre la palabra, nunca en un bloque suelto. */
+.hl{background:var(--signal);padding:0 .14em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .sw{font-family:var(--switzer);font-weight:700}
 .micro{font-size:var(--micro);letter-spacing:var(--tracking-micro);text-transform:uppercase;font-weight:500}
 .mono-num{font-variant-numeric:tabular-nums}
@@ -87,15 +89,15 @@ a{color:inherit}
 
 /* ===== SECTION HEADINGS ===== */
 .view-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:36px;flex-wrap:wrap}
-.view-head h2{font-size:clamp(34px,5.4vw,56px);line-height:.85}
+.view-head h2{font-size:clamp(40px,7.4vw,92px)}
 .view-head .sub{color:var(--muted);font-size:16px;line-height:1.45;max-width:56ch;margin-top:12px}
 
 /* ===== KPI GRID ===== */
 .kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;background:var(--ink);border:2px solid var(--ink);margin-bottom:48px}
-.kpi{background:var(--card);padding:18px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.kpi{background:var(--card);padding:22px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .kpi.-accent{background:var(--signal)}
 .kpi.-warn{background:var(--hazard);color:var(--paper)}
-.kpi .num{font-family:var(--sans);font-weight:900;font-stretch:condensed;font-size:clamp(28px,3.4vw,44px);line-height:1}
+.kpi .num{font-family:var(--sans);font-weight:900;font-stretch:condensed;font-size:clamp(34px,4.4vw,62px);line-height:.85;letter-spacing:var(--tracking-display)}
 .kpi .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--muted)}
 .kpi.-accent .lbl,.kpi.-warn .lbl{color:inherit;opacity:.82}
 @media (max-width:920px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
@@ -143,12 +145,12 @@ a{color:inherit}
 .prio-item .prio-avance{margin-top:14px;display:flex;flex-direction:column;gap:7px}
 
 /* ===== FILTER BAR ===== */
-.filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px;padding:14px;border:2px solid var(--ink);background:var(--card)}
+.filter-bar{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;margin-bottom:28px;padding:18px 20px;border:2px solid var(--ink);background:var(--card)}
 .filter-bar .fgroup{display:flex;flex-direction:column;gap:4px}
-.filter-bar label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.filter-bar label{font-size:var(--micro);letter-spacing:var(--tracking-micro);text-transform:uppercase;font-weight:500;color:var(--muted)}
 .filter-bar select{
   border:2px solid var(--ink);background:var(--paper);padding:8px 30px 8px 10px;font-size:12.5px;
-  text-transform:uppercase;letter-spacing:.03em;font-weight:600;appearance:none;cursor:pointer;min-width:150px;
+  text-transform:uppercase;letter-spacing:.03em;font-weight:600;appearance:none;cursor:pointer;width:168px;min-width:0;max-width:100%;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
   background-repeat:no-repeat;background-position:right 10px center;
 }
@@ -418,7 +420,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261014-1807";
+  window.APP_VERSION = "20261014-1900";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1429,7 +1431,7 @@ function renderDashboard(root){
   root.innerHTML = `
     <div class="view-head">
       <div>
-        <h2 class="cond">Dashboard · Noctis</h2>
+        <h2 class="cond">Dashboard · <span class="hl">Noctis</span></h2>
         <p class="sub">Resumen general del plan de acción del 1er trimestre — Etapa 1 (diagnóstico y estrategia) ya está cerrada.</p>
       </div>
     </div>
@@ -1520,7 +1522,7 @@ function renderFilterBar(root, opts){
     <div class="fgroup"><label>Prioridad</label>
       <select data-f="fase">
         <option value="">Todas</option>
-        ${[0].concat(FASE_IDS).map(k=>`<option value="${k}">${FASE_META[k].label}</option>`).join("")}
+        ${[0].concat(FASE_IDS).map(k=>`<option value="${k}">${k===0 ? "Etapa 1" : (k>3 ? "Transversal" : "P"+k)}</option>`).join("")}
       </select>
     </div>
     <div class="fgroup"><label>Estado</label>
@@ -1616,7 +1618,7 @@ function taskListHead(){
 function renderPlan(root){
   root.innerHTML = `<div class="view-head">
       <div>
-        <h2 class="cond">Plan de trabajo · Noctis</h2>
+        <h2 class="cond">Plan de trabajo · <span class="hl">Noctis</span></h2>
         <p class="sub">Lo que falta hacer o está en proceso, organizado por prioridad del trimestre. Tocá cualquier tarea para editarla. Al marcar una tarea como Completado pasa a Finalizadas. Sumá lo que se agregue en cada encuentro con "+ Nueva tarea".</p>
       </div>
       <div class="actions"><a class="btn-secondary btn-link" href="${DRIVE_URL}" target="_blank" rel="noopener">Drive de trabajo ↗</a><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
@@ -1628,7 +1630,7 @@ function renderPlan(root){
 function renderFinalizadas(root){
   root.innerHTML = `<div class="view-head">
       <div>
-        <h2 class="cond">Finalizadas · Noctis</h2>
+        <h2 class="cond">Finalizadas · <span class="hl">Noctis</span></h2>
         <p class="sub">Tareas completadas, organizadas por prioridad del trimestre. Si una se reabre, cambiá su estado y vuelve al Plan de trabajo.</p>
       </div>
     </div>`;
@@ -1672,7 +1674,7 @@ function renderTaskGroups(root, pool, emptyMsg){
    ===================================================================== */
 function renderTimeline(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Timeline · Noctis</h2>
+      <h2 class="cond">Timeline · <span class="hl">Noctis</span></h2>
       <p class="sub">Recorrido cronológico del proyecto: desde el diagnóstico (Etapa 1) hasta las tareas con fecha de la Etapa 2.</p>
     </div></div>`;
 
@@ -1733,7 +1735,7 @@ function flagMissing(container, fields, anchor){
 
 function renderReuniones(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Reuniones · Noctis</h2>
+      <h2 class="cond">Reuniones · <span class="hl">Noctis</span></h2>
       <p class="sub">Registro de cada encuentro de trabajo: fecha, quién participó, duración y qué se trató. Incluye el historial de la Etapa 1.</p>
     </div></div>`;
 
@@ -1803,7 +1805,7 @@ function renderReuniones(root){
    ===================================================================== */
 function renderEntregables(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Entregables · Noctis</h2>
+      <h2 class="cond">Entregables · <span class="hl">Noctis</span></h2>
       <p class="sub">Documentos, piezas y resultados generados por cada tarea, tomados de la columna de observaciones del plan.</p>
     </div></div>`;
 
@@ -1858,7 +1860,7 @@ function escHtml(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/
    ===================================================================== */
 function renderMetricas(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Métricas · Noctis</h2>
+      <h2 class="cond">Métricas · <span class="hl">Noctis</span></h2>
       <p class="sub">Métricas que acompañan las prioridades del trimestre (hoja 03). No reemplazan el tablero de tareas: sirven para evaluar si el trabajo está moviendo el modelo.</p>
     </div></div>`;
   const list = RAW.metricas || [];
@@ -1884,7 +1886,7 @@ function renderMetricas(root){
 
 function renderNotas(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Notas · Noctis</h2>
+      <h2 class="cond">Notas · <span class="hl">Noctis</span></h2>
       <p class="sub">Objetivo, prioridades del trimestre, y bitácora de decisiones y observaciones del equipo.</p>
     </div></div>`;
 
