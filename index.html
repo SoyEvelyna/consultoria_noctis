@@ -217,14 +217,15 @@ a{color:inherit}
   background-repeat:no-repeat;background-position:right 8px center;background-size:9px 6px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23212121'/></svg>");
 }
-/* Estados, con la paleta del manual y nada más. El circuito se lee por color
-   y por intensidad: sin color todavía no arrancó, amarillo está en marcha,
-   verde ya salió. El rojo no entra acá: queda para el quiebre (vencida). */
-.st-Por-hacer{background:var(--paper);color:var(--ink);border-color:var(--ink)}
-.st-En-proceso{background:var(--chrome);color:var(--ink);border-color:var(--ink)}
-.st-En-revision{background:var(--paper);color:var(--ink);border-color:var(--chrome)}
-.st-Testear{background:var(--paper);color:var(--ink);border-color:var(--signal)}
-.st-Completado{background:var(--signal);color:var(--ink);border-color:var(--ink)}
+/* Estados: Pendiente rojo · Proceso amarillo · Revisar celeste · Testear
+   violeta · Finalizada verde. Son cinco colores propios, fuera de la paleta
+   del manual, y quedan así a pedido de Evelyn: acá no decoran, distinguen
+   cinco pasos de un circuito y se leen de un vistazo en la tabla. */
+.st-Por-hacer{background:#E5484D;color:#fff;border-color:#B9282D}
+.st-En-proceso{background:#F5C518;color:#212121;border-color:#C89E00}
+.st-En-revision{background:#8FD3F4;color:#212121;border-color:#4BA9D6}
+.st-Testear{background:#9B6BDF;color:#fff;border-color:#7447B8}
+.st-Completado{background:#3DBE6A;color:#fff;border-color:#23914A}
 .obs-btn{
   width:30px;height:30px;border:2px solid var(--ink);background:var(--card);cursor:pointer;
   display:grid;place-items:center;font-size:13px;font-weight:700;flex:none;
@@ -420,7 +421,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261014-1900";
+  window.APP_VERSION = "20261014-1925";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
