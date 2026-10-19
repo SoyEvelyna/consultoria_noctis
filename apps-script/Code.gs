@@ -866,10 +866,10 @@ function difResumen_(antes, ahora) {
     if (cambios.length) r.otros.push({ t: t, cambios: cambios });
   });
   (antes.tareas || []).forEach(function (p) { if (!vistas[claveTarea_(p)]) r.eliminadas.push(p); });
-  var reunAntes = {};
-  (antes.reuniones || []).forEach(function (m) { reunAntes[m.fecha + "|" + m.tarea] = true; });
-  (ahora.reuniones || []).forEach(function (m) { if (!reunAntes[m.fecha + "|" + m.tarea]) r.reuniones.push(m); });
-  r.total = r.nuevas.length + r.finalizadas.length + r.estados.length + r.otros.length + r.eliminadas.length + r.reuniones.length;
+  /* Las reuniones quedan fuera del resumen a propósito: se cargan en el
+     tablero y ahí se ven. Si una reunión nueva es el único cambio del día,
+     no sale ningún mail. */
+  r.total = r.nuevas.length + r.finalizadas.length + r.estados.length + r.otros.length + r.eliminadas.length;
   return r;
 }
 
@@ -898,10 +898,6 @@ function htmlResumen_(r, hoy, prueba) {
     return linea(x.t, x.cambios.map(function (c) { return esc(corto(c)); }).join("<br>"));
   }));
   html += seccion("Eliminadas", "#B9282D", r.eliminadas.map(function (t) { return linea(t); }));
-  html += seccion("Reuniones nuevas", "#212121", r.reuniones.map(function (m) {
-    return "<li style='margin-bottom:6px'><b>" + esc(m.tarea) + "</b> · " + esc(m.fecha) +
-      (m.resultado ? "<br><span style='color:#555'>" + esc(corto(m.resultado)) + "</span>" : "") + "</li>";
-  }));
   if (!r.total) html += "<p style='font-family:Arial,sans-serif;margin-top:16px'>No hubo cambios.</p>";
   html += "<p style='font-family:Arial,sans-serif;margin-top:24px'><a href='" + TABLERO_URL + "'>Abrir el tablero de Noctis</a></p></div>";
   return html;
