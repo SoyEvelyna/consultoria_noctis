@@ -1011,11 +1011,12 @@ function desactivarResumen_() {
 }
 
 /* =====================================================================
-   PERMITIR VARIOS RESPONSABLES POR TAREA
-   La columna RESPONSABLE suele tener el desplegable en modo "Rechazar": si la
-   web manda "Eve, Ger" la celda lo rechaza y el valor termina anotado en
-   OBSERVACIONES. Esto deja la misma lista de nombres pero en modo aviso, así
-   una celda puede llevar varios. No borra ni cambia ningún dato.
+   DESTRABAR LOS DESPLEGABLES DE RESPONSABLE Y ÁREA
+   Vienen en modo "Rechazar": si la web manda "Eve, Ger" en RESPONSABLE, o un
+   área que todavía no está en la lista, la celda lo rechaza y el valor
+   termina anotado en OBSERVACIONES. Esto deja las mismas listas pero en modo
+   aviso, así una celda puede llevar varios nombres y se puede sumar un área
+   nueva. No borra ni cambia ningún dato: sólo deja de bloquear.
    EJECUTAR A MANO UNA SOLA VEZ: elegir "permitirVariosResponsables" en el
    desplegable del editor y Ejecutar.
    ===================================================================== */
@@ -1031,16 +1032,22 @@ function permitirVariosResponsables() {
     var nombre = sheet.getName();
     if (nombre.indexOf("WebApp") === 0) return;
     var values = sheet.getDataRange().getValues();
-    var fila = -1, col = -1;
+    var fila = -1, columnas = {};
     for (var r = 0; r < values.length && fila === -1; r++) {
       for (var c = 0; c < values[r].length; c++) {
-        if (limpio_(values[r][c]) === "RESPONSABLE") { fila = r; col = c; break; }
+        var cab = limpio_(values[r][c]);
+        if (cab === "RESPONSABLE" || cab === "AREA") {
+          if (columnas[cab] === undefined) columnas[cab] = c;
+          fila = r;
+        }
       }
     }
     if (fila === -1) return;
     var desde = fila + 2;
     var filas = sheet.getMaxRows() - desde + 1;
     if (filas < 1) { out.push({ hoja: nombre, estado: "sin filas" }); return; }
+    Object.keys(columnas).forEach(function (campo) {
+    var col = columnas[campo];
     var rango = sheet.getRange(desde, col + 1, filas, 1);
     var vistos = {}, nombres = [];
     function sumar(v) {
@@ -1065,11 +1072,12 @@ function permitirVariosResponsables() {
     rango.getValues().forEach(function (f) {
       String(f[0] === null || f[0] === undefined ? "" : f[0]).split(/\s*[,\/]\s*/).forEach(sumar);
     });
-    if (!nombres.length) { out.push({ hoja: nombre, estado: "sin nombres" }); return; }
+    if (!nombres.length) { out.push({ hoja: nombre, campo: campo, estado: "sin valores" }); return; }
     nombres.sort(function (a, b) { return a.localeCompare(b); });
     rango.setDataValidation(SpreadsheetApp.newDataValidation()
       .requireValueInList(nombres, true).setAllowInvalid(true).build());
-    out.push({ hoja: nombre, columna: col + 1, desdeFila: desde, nombres: nombres });
+    out.push({ hoja: nombre, campo: campo, columna: col + 1, desdeFila: desde, valores: nombres });
+    });
   });
   Logger.log(JSON.stringify(out, null, 2));
   return out;
