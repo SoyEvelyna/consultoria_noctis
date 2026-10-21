@@ -450,7 +450,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261021-1750";
+  window.APP_VERSION = "20261021-1754";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1482,7 +1482,19 @@ function textoBuscable_(t){
     respLabel(t.responsable), estadoLabel(currentEstado(t)), taskLink(t)
   ].filter(Boolean).join(" "));
 }
+/* Buscar no exige escribir bien: cada palabra vale si aparece tal cual o si
+   queda a una letra de alguna palabra del texto (dos, si es larga). Lo
+   tolerante es lo normal; lo exacto sólo sirve para avisar en pantalla. */
 function coincideBusqueda_(t, q){
+  const texto = textoBuscable_(t);
+  const palabras = texto.split(/[^a-z0-9]+/).filter(Boolean);
+  return sinTildes_(q).split(/\s+/).filter(Boolean).every(p=>{
+    if(texto.indexOf(p) !== -1) return true;
+    const tope = toleranciaDe_(p);
+    return tope > 0 && palabras.some(w=> distanciaHasta_(p, w, tope) <= tope);
+  });
+}
+function coincideExacto_(t, q){
   const texto = textoBuscable_(t);
   return sinTildes_(q).split(/\s+/).filter(Boolean).every(p=> texto.indexOf(p) !== -1);
 }
@@ -1510,22 +1522,6 @@ function distanciaHasta_(a, b, tope){
 }
 function toleranciaDe_(palabra){
   return palabra.length >= 8 ? 2 : palabra.length >= 5 ? 1 : 0;
-}
-function coincideAprox_(t, q){
-  const palabras = sinTildes_(q).split(/\s+/).filter(Boolean);
-  const texto = textoBuscable_(t).split(/[^a-z0-9]+/).filter(Boolean);
-  return palabras.every(p=>{
-    const tope = toleranciaDe_(p);
-    return texto.some(w=> w.indexOf(p) !== -1 || (tope > 0 && distanciaHasta_(p, w, tope) <= tope));
-  });
-}
-/* Los mismos filtros de siempre, pero con el texto en modo tolerante. */
-function aproximados_(pool, q){
-  const guardado = state.filters.q;
-  state.filters.q = "";
-  const base = applyFilters(pool);
-  state.filters.q = guardado;
-  return base.filter(t=> coincideAprox_(t, q));
 }
 
 function applyFilters(list){
@@ -1846,29 +1842,25 @@ function renderFinalizadas(root){
 function renderTaskGroups(root, pool, emptyMsg){
   renderFilterBar(root);
   const q = String(state.filters.q || "").trim();
-  let tasks = applyFilters(pool);
-  let aprox = false;
-  if(!tasks.length && q){
-    const cerca = aproximados_(pool, q);
-    if(cerca.length){ tasks = cerca; aprox = true; }
-  }
+  const tasks = applyFilters(pool);
+  const soloParecidas = !!(q && tasks.length && !tasks.some(t=> coincideExacto_(t, q)));
   const countEl = document.createElement("div");
   countEl.className = "result-count";
   countEl.textContent = tasks.length + " de " + pool.length + " tareas";
   root.appendChild(countEl);
 
-  if(aprox){
+  if(soloParecidas){
     const nota = document.createElement("div");
     nota.className = "busq-aviso";
-    nota.innerHTML = "Nada coincide exactamente con <b></b>. Te muestro lo más parecido.";
+    nota.innerHTML = "Nada dice <b></b> con esas letras exactas. Te muestro lo más parecido.";
     nota.querySelector("b").textContent = "«" + q + "»";
     root.appendChild(nota);
   }
   /* Buscar desde el plan algo que ya se terminó parecía no encontrar nada:
      ahora lo dice y lleva hasta donde está. */
   if(q){
-    const otroLado = trackedTasks().filter(t=> tasks.indexOf(t) === -1 && pool.indexOf(t) === -1);
-    const alla = aprox ? aproximados_(otroLado, q) : applyFilters(otroLado);
+    const otroLado = trackedTasks().filter(t=> pool.indexOf(t) === -1);
+    const alla = applyFilters(otroLado);
     if(alla.length){
       const destino = state.view === "finalizadas" ? "plan" : "finalizadas";
       const nota = document.createElement("div");
