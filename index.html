@@ -76,6 +76,18 @@ a{color:inherit}
 .sync-dot.-on{background:var(--signal)}
 .sync-dot.-local{background:var(--chrome)}
 
+/* ===== LOGS ===== */
+.log-day{margin-bottom:26px}
+.log-day-head{font-size:var(--micro);letter-spacing:var(--tracking-micro);text-transform:uppercase;font-weight:700;color:var(--muted);border-bottom:2px solid var(--ink);padding-bottom:6px;margin-bottom:10px}
+.log-item{display:grid;grid-template-columns:64px 1fr;gap:14px;padding:10px 0;border-bottom:1.5px solid var(--rule);align-items:baseline}
+.log-hora{font-size:12px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.log-txt .quien{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.log-txt b{display:block;font-size:14px;line-height:1.35;margin-top:2px}
+.log-detalle{font-size:13px;color:var(--muted);line-height:1.5;margin-top:3px}
+.yo-chip{display:flex;align-items:center;gap:6px;font-size:var(--micro);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.yo-chip select{font-family:inherit;font-size:11px;letter-spacing:.04em;text-transform:none;font-weight:600;padding:4px 6px;border:1.5px solid var(--rule);background:var(--card);color:var(--ink);border-radius:0;max-width:170px}
+@media (max-width:620px){ .log-item{grid-template-columns:52px 1fr;gap:10px} }
+
 /* ===== TABS ===== */
 .tabs{display:flex;gap:0;border-bottom:2px solid var(--ink);margin-bottom:44px;overflow-x:auto}
 .tab-btn{
@@ -391,6 +403,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
     <span class="sync-chip"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Conectando…</span></span>
     <button class="btn-secondary btn-sm" id="refresh-btn" title="Vuelve a leer el Sheet">↻ Actualizar</button>
     <button class="btn-secondary btn-sm" id="export-btn">⬇ Exportar a Excel</button>
+    <span class="yo-chip">Soy <select id="quien-soy" title="Con este nombre se firman tus cambios en la pestaña Logs"></select></span>
   </div>
 
   <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -421,7 +434,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261014-1925";
+  window.APP_VERSION = "20261021-1550";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -701,6 +714,83 @@ function saveLocalNotes(){ try{ localStorage.setItem(localKey("notes"), JSON.str
 function saveLocalCustom(){ try{ localStorage.setItem(localKey("customTasks"), JSON.stringify(customTasksState)); }catch(e){} }
 function saveLocalMeetings(){ try{ localStorage.setItem(localKey("meetings"), JSON.stringify(meetingsState)); }catch(e){} }
 
+/* =====================================================================
+   LOGS · quién cambió qué y cuándo
+   Cada edición deja una línea en la pestaña "WebApp - Logs" del Sheet, así el
+   registro es del equipo y no de un navegador. Lo recién hecho se guarda
+   también acá al lado, por si la relectura del Sheet llega antes que la
+   escritura y la línea todavía no está en la hoja.
+   ===================================================================== */
+let logsState = [];          // lo que vino del Sheet
+const logsLocales = [];      // lo hecho en esta visita
+const LOG_CAMPOS = {tarea:"Tarea", area:"Área", tema:"Tema", responsable:"Responsable",
+  inicio:"Inicio", cierre:"Cierre", estado:"Estado", obs:"Observaciones", link:"Link",
+  prioridad:"Prioridad", fase:"Prioridad"};
+
+function quienSoy_(){ try{ return localStorage.getItem(localKey("quien")) || ""; }catch(e){ return ""; } }
+function setQuienSoy_(v){ try{ localStorage.setItem(localKey("quien"), v||""); }catch(e){} }
+function logContexto_(){ return ""; }
+
+function logValor_(campo, v){
+  if(v===null || v===undefined || v==="") return "—";
+  if(campo==="estado") return estadoLabel(v);
+  if(campo==="fase"){
+    const p = (typeof PRIORIDADES!=="undefined" ? PRIORIDADES : []).find(x=>Number(x.n)===Number(v));
+    return p ? ("P"+p.n+" · "+p.tt) : String(v);
+  }
+  return String(v);
+}
+
+/* Sólo lo que de verdad cambió: el guardado manda todos los campos del
+   formulario y sin esto cada edición listaría los ocho, hayan cambiado o no. */
+function logDiff_(t, fields){
+  return Object.keys(fields).filter(k=>LOG_CAMPOS[k]).map(k=>{
+    const antes = (k==="cierre") ? (t.cierre||t.tiempo)
+                : (k==="estado" && t.id) ? currentEstado(t)
+                : t[k];
+    const igual = String(antes==null?"":antes) === String(fields[k]==null?"":fields[k]);
+    return igual ? null : LOG_CAMPOS[k]+": "+logValor_(k, antes)+" → "+logValor_(k, fields[k]);
+  }).filter(Boolean).join(" · ");
+}
+
+function registrarLog_(accion, tarea, detalle){
+  const ctx = logContexto_();
+  const entry = {
+    id: "l" + Date.now() + Math.random().toString(36).slice(2,6),
+    ts: new Date().toISOString(),
+    autor: quienSoy_() || "Sin identificar",
+    accion: accion,
+    tarea: (ctx ? ctx + " · " : "") + String(tarea||"").slice(0,180),
+    detalle: detalle || ""
+  };
+  logsLocales.unshift(entry);
+  /* Va por la misma cola que las ediciones, para no adelantarse a ellas, pero
+     fuera del contador: un log que falla no tiene que trabar un guardado. */
+  if(sheetMode()) sheetQueue = sheetQueue.then(()=> gasWrite_("addLog", entry).catch(e=>console.error("log:", e)));
+  return entry;
+}
+
+function logsTodos(){
+  const vistos = {};
+  logsState.forEach(l=>{ vistos[l.id] = true; });
+  return logsLocales.filter(l=>!vistos[l.id]).concat(logsState)
+    .sort((a,b)=> String(b.ts||"").localeCompare(String(a.ts||"")));
+}
+
+/* Con quién se firman los cambios. Se repinta en cada render porque la lista
+   de responsables recién está completa después de leer el Sheet. */
+function pintarQuienSoy_(){
+  const sel = document.getElementById("quien-soy");
+  if(!sel) return;
+  const nombres = allResponsables();
+  if(sel.dataset.n !== String(nombres.length)){
+    sel.dataset.n = String(nombres.length);
+    sel.innerHTML = '<option value="">Sin identificar</option>' +
+      nombres.map(r=>`<option value="${r}">${r}</option>`).join("");
+  }
+  sel.value = quienSoy_();
+}
+
 function setSyncUI(mode){
   dbMode = mode;
   if(mode!=="checking" && resolveStoreReady) resolveStoreReady(mode);
@@ -828,6 +918,8 @@ window.addEventListener("beforeunload", (e)=>{
 });
 
 function sheetTaskEdit(t, fields){
+  const detalleLog = logDiff_(t, fields);
+  if(detalleLog) registrarLog_(Object.keys(fields).length===1 && fields.estado!==undefined ? "Cambió el estado" : "Editó la tarea", t.tarea, detalleLog);
   recordarCambio_(t, fields);
   const local = TASKS.find(x=>x.id===t.id);
   if(local){
@@ -844,6 +936,7 @@ function sheetTaskEdit(t, fields){
 }
 
 function sheetDeleteTask(t){
+  registrarLog_("Borró la tarea", t.tarea, "");
   overridesState[t.id] = Object.assign({}, overridesState[t.id], {hidden:true});
   render();
   return sheetWrite("deleteTask", {id: t.id});
@@ -896,6 +989,7 @@ async function saveTaskEdits(t, fields){
 }
 
 async function addCustomTask(data){
+  registrarLog_("Creó la tarea", data.tarea, logDiff_({}, {responsable:data.responsable, cierre:data.cierre, estado:data.estado, fase:data.fase}));
   if(sheetMode()){
     customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
     render();
@@ -1030,6 +1124,7 @@ function aplicarLectura(data){
   notesState = data.notes || [];
   customTasksState = (data.customTasks || []).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
   meetingsState = data.meetings || [];
+  logsState = data.logs || [];
 }
 
 /* Vuelve a leer el Sheet después de guardar, para quedar igual que la hoja. */
@@ -1325,12 +1420,12 @@ const state = { view:"dashboard", filters:{fase:"", estado:"", responsable:"", p
 const VIEWS = [
   {id:"dashboard", label:"Dashboard"},
   {id:"plan", label:"Plan de trabajo"},
-  {id:"finalizadas", label:"Finalizadas"},
   {id:"timeline", label:"Timeline"},
   {id:"reuniones", label:"Reuniones"},
   {id:"entregables", label:"Entregables"},
   {id:"metricas", label:"Métricas"},
   {id:"notas", label:"Notas"},
+  {id:"logs", label:"Logs"},
 ];
 const ESTADOS = ["Por hacer","En proceso","En revisión","Testear","Completado"];
 /* Nombre que se ve (y que se guarda en el Sheet) para cada estado interno. */
@@ -1395,8 +1490,9 @@ function render(){
   if(banda && vista) banda.textContent = vista.label + " · " + String(i+1).padStart(2,"0") + " / " + String(VIEWS.length).padStart(2,"0");
   const root = document.getElementById("view");
   root.innerHTML = "";
-  const fns = {dashboard:renderDashboard, plan:renderPlan, finalizadas:renderFinalizadas, timeline:renderTimeline, reuniones:renderReuniones, entregables:renderEntregables, metricas:renderMetricas, notas:renderNotas};
+  const fns = {dashboard:renderDashboard, plan:renderPlan, finalizadas:renderFinalizadas, timeline:renderTimeline, reuniones:renderReuniones, entregables:renderEntregables, metricas:renderMetricas, notas:renderNotas, logs:renderLogs};
   (fns[state.view] || renderDashboard)(root);
+  pintarQuienSoy_();
 }
 
 /* =====================================================================
@@ -1622,9 +1718,10 @@ function renderPlan(root){
         <h2 class="cond">Plan de trabajo · <span class="hl">Noctis</span></h2>
         <p class="sub">Lo que falta hacer o está en proceso, organizado por prioridad del trimestre. Tocá cualquier tarea para editarla. Al marcar una tarea como Completado pasa a Finalizadas. Sumá lo que se agregue en cada encuentro con "+ Nueva tarea".</p>
       </div>
-      <div class="actions"><a class="btn-secondary btn-link" href="${DRIVE_URL}" target="_blank" rel="noopener">Drive de trabajo ↗</a><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
+      <div class="actions"><a class="btn-secondary btn-link" href="${DRIVE_URL}" target="_blank" rel="noopener">Drive de trabajo ↗</a><button class="btn-secondary" id="ver-finalizadas">Finalizadas (${trackedTasks().filter(t=>currentEstado(t)==="Completado").length}) ↗</button><button class="btn-primary" id="add-task-btn">+ Nueva tarea</button></div>
     </div>`;
   root.querySelector("#add-task-btn").addEventListener("click", openAddTaskModal);
+  root.querySelector("#ver-finalizadas").addEventListener("click", ()=>{ state.view="finalizadas"; render(); });
   renderTaskGroups(root, trackedTasks().filter(t=>currentEstado(t)!=="Completado"), "No hay tareas pendientes que coincidan con estos filtros.");
 }
 
@@ -1635,6 +1732,9 @@ function renderFinalizadas(root){
         <p class="sub">Tareas completadas, organizadas por prioridad del trimestre. Si una se reabre, cambiá su estado y vuelve al Plan de trabajo.</p>
       </div>
     </div>`;
+  root.querySelector(".view-head").insertAdjacentHTML("beforeend",
+    `<div class="actions"><button class="btn-secondary" id="volver-plan">← Plan de trabajo</button></div>`);
+  root.querySelector("#volver-plan").addEventListener("click", ()=>{ state.view="plan"; render(); });
   renderTaskGroups(root, trackedTasks().filter(t=>currentEstado(t)==="Completado"), "No hay tareas finalizadas que coincidan con estos filtros.");
 }
 
@@ -1959,6 +2059,62 @@ function renderNotas(root){
       log.appendChild(item);
     });
   }
+}
+
+/* =====================================================================
+   RENDER: LOGS
+   ===================================================================== */
+function etiquetaDia_(iso){
+  const d = new Date(iso + "T12:00:00");
+  if(isNaN(d)) return iso;
+  const txt = d.toLocaleDateString("es-AR", {weekday:"long", day:"numeric", month:"long"});
+  const dias = Math.round((new Date(new Date().toDateString()) - new Date(d.toDateString())) / 86400000);
+  if(dias === 0) return "Hoy · " + txt;
+  if(dias === 1) return "Ayer · " + txt;
+  return txt;
+}
+
+function renderLogs(root){
+  const entradas = logsTodos();
+  root.innerHTML = `<div class="view-head">
+      <div>
+        <h2 class="cond">Logs · <span class="hl">Noctis</span></h2>
+        <p class="sub">Todo lo que se fue editando en el tablero, lo último arriba y agrupado por día: qué tarea, qué cambió y quién lo hizo. Se guarda en el Sheet, así que es el registro del equipo entero y no el de este navegador. Para que tus cambios salgan con tu nombre, elegí quién sos en el selector «Soy» de arriba.</p>
+      </div>
+    </div>`;
+
+  if(!entradas.length){
+    root.insertAdjacentHTML("beforeend",
+      `<div class="empty-note">Todavía no hay movimientos anotados. Desde ahora, cada tarea que crees, edites o borres queda registrada acá.</div>`);
+    return;
+  }
+
+  const porDia = {};
+  entradas.forEach(l=>{
+    const d = new Date(l.ts);
+    const key = isNaN(d) ? "0000-00-00" : new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    (porDia[key] = porDia[key] || []).push(l);
+  });
+
+  Object.keys(porDia).sort().reverse().forEach(dia=>{
+    const delDia = porDia[dia];
+    const block = document.createElement("div");
+    block.className = "log-day";
+    block.innerHTML = `<div class="log-day-head">${etiquetaDia_(dia)} · ${delDia.length} ${delDia.length===1?"movimiento":"movimientos"}</div>`;
+    delDia.forEach(l=>{
+      const d = new Date(l.ts);
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.innerHTML = `<div class="log-hora">${isNaN(d) ? "" : d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}</div>
+        <div class="log-txt"><div class="quien"></div><b></b><div class="log-detalle"></div></div>`;
+      item.querySelector(".quien").textContent = (l.autor || "Sin identificar") + " · " + (l.accion || "");
+      item.querySelector("b").textContent = l.tarea || "";
+      const det = item.querySelector(".log-detalle");
+      if(l.detalle) det.textContent = l.detalle; else det.remove();
+      block.appendChild(item);
+    });
+    root.appendChild(block);
+  });
 }
 
 /* =====================================================================
