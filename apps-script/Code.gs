@@ -41,7 +41,7 @@ var SHEET_LOGS = "WebApp - Logs";
 var TITULO_REUNION = "Encuentro I Estado del proceso de trabajo";
 
 var SHEET_SCHEMAS = {};
-SHEET_SCHEMAS[SHEET_OVERRIDES] = ["task_id", "estado", "link", "inicio", "cierre", "hidden", "updated_at"];
+SHEET_SCHEMAS[SHEET_OVERRIDES] = ["task_id", "estado", "link", "inicio", "cierre", "hidden", "updated_at", "urgencia"];
 SHEET_SCHEMAS[SHEET_NOTES] = ["id", "text", "author", "createdAt"];
 SHEET_SCHEMAS[SHEET_LOGS] = ["id", "ts", "autor", "accion", "tarea", "detalle"];
 
@@ -238,7 +238,23 @@ function ensureSheets_() {
       sheet.appendRow(SHEET_SCHEMAS[name]);
       sheet.setFrozenRows(1);
     }
+    asegurarColumnas_(name);
   });
+}
+/* Las pestañas de la web las crea ensureSheets_, pero una que ya existía se
+   quedó con las columnas de cuando se creó. Esto agrega al final las que
+   falten, sin tocar ni mover nada de lo que ya hay. */
+function asegurarColumnas_(nombre) {
+  var sheet = ss_().getSheetByName(nombre);
+  if (!sheet) return;
+  var cols = SHEET_SCHEMAS[nombre];
+  var ancho = Math.max(sheet.getLastColumn(), 1);
+  var actuales = sheet.getRange(1, 1, 1, ancho).getValues()[0]
+    .map(function (v) { return String(v === null || v === undefined ? "" : v).trim(); });
+  while (actuales.length && !actuales[actuales.length - 1]) actuales.pop();
+  for (var i = actuales.length; i < cols.length; i++) {
+    sheet.getRange(1, i + 1).setValue(cols[i]);
+  }
 }
 
 function readSimpleRows_(sheetName, cols, dateCols) {
@@ -261,7 +277,7 @@ function readOverrides_() {
   var out = {};
   readSimpleRows_(SHEET_OVERRIDES, SHEET_SCHEMAS[SHEET_OVERRIDES], ["inicio", "cierre"]).forEach(function (r) {
     out[r.task_id] = { estado: r.estado, link: r.link, inicio: r.inicio, cierre: r.cierre,
-      hidden: r.hidden === true || r.hidden === "true", updatedAt: r.updated_at };
+      hidden: r.hidden === true || r.hidden === "true", updatedAt: r.updated_at, urgencia: r.urgencia || null };
   });
   return out;
 }

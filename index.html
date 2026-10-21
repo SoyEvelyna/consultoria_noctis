@@ -185,6 +185,20 @@ a{color:inherit}
 }
 .filter-clear:hover{color:var(--hazard)}
 .result-count{font-size:12px;color:var(--muted);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+/* ===== URGENCIA ===== */
+.urg-chip{display:inline-block;margin-top:5px;padding:2px 7px;border:1.5px solid var(--ink);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;line-height:1.5}
+.urg-alta{background:var(--hazard);color:#fff;border-color:var(--hazard)}
+.urg-media{background:var(--chrome);color:var(--ink)}
+.urg-baja{background:var(--signal);color:var(--ink)}
+.urg-chip.-mano{box-shadow:2px 2px 0 var(--ink)}
+
+/* ===== RESPONSABLES (varios por tarea) ===== */
+.resp-box{border:2px solid var(--ink);background:var(--paper);max-height:150px;overflow-y:auto;padding:6px 9px}
+.resp-box label{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;font-weight:600;cursor:pointer}
+.resp-box input{width:14px;height:14px;flex:none;accent-color:var(--ink);cursor:pointer}
+.resp-add{margin-top:6px;background:none;border:none;padding:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-decoration:underline;color:var(--muted);cursor:pointer}
+.resp-add:hover{color:var(--ink)}
+.flabel .fhint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
 .busq-aviso{font-size:13px;line-height:1.5;color:var(--muted);margin:-4px 0 14px;padding:9px 12px;border-left:4px solid var(--ink);background:var(--card)}
 .busq-aviso b{color:var(--ink)}
 .busq-aviso .link-btn{background:none;border:none;padding:0;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--ink)}
@@ -450,7 +464,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261021-1754";
+  window.APP_VERSION = "20261021-1756";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -530,12 +544,13 @@ function initials(r){
   const parts = r.trim().split(/\s+/);
   return (parts.length>1 ? parts[0][0]+parts[1][0] : r.slice(0,2)).toUpperCase();
 }
+function urgencia(t, estado){ return urgenciaManual(t) || urgenciaAuto(t, estado); }
 function respLabel(r){ return r || "Sin asignar"; }
 function allResponsables(){
   const base = SHEET_OPCIONES.responsable && SHEET_OPCIONES.responsable.length ? SHEET_OPCIONES.responsable : RESPONSABLES;
   const set = new Set(base);
-  TASKS.forEach(t=>{ if(t.responsable && t.source!=="etapa1") set.add(t.responsable); });
-  customTasksState.forEach(c=>{ if(c.responsable) set.add(c.responsable); });
+  TASKS.forEach(t=>{ if(t.responsable && t.source!=="etapa1") parseResp(t.responsable).forEach(r=>set.add(r)); });
+  customTasksState.forEach(c=>{ if(c.responsable) parseResp(c.responsable).forEach(r=>set.add(r)); });
   return Array.from(set);
 }
 function allAreas(){
@@ -607,7 +622,7 @@ function isOverdue(t, estado){
   if(!due) return false;
   return new Date(due+"T00:00:00") < todayMidnight();
 }
-function urgencia(t, estado){
+function urgenciaAuto(t, estado){
   if(estado==="Completado") return "Baja";
   const due = dueDateOf(t);
   if(!due) return "Baja";
@@ -1524,6 +1539,85 @@ function toleranciaDe_(palabra){
   return palabra.length >= 8 ? 2 : palabra.length >= 5 ? 1 : 0;
 }
 
+/* ===== VARIOS RESPONSABLES POR TAREA =====
+   En la hoja van en la misma celda separados por coma, que es como ya los
+   escribía el equipo a mano. No hace falta ninguna columna nueva. */
+function parseResp(v){
+  return String(v===null||v===undefined ? "" : v).split(/\s*[,\/]\s*/).map(s=>s.trim()).filter(Boolean);
+}
+function joinResp(arr){
+  const vistos = {}, out = [];
+  (arr||[]).forEach(s=>{
+    const x = String(s===null||s===undefined ? "" : s).trim();
+    if(!x || vistos[x.toLowerCase()]) return;
+    vistos[x.toLowerCase()] = true;
+    out.push(x);
+  });
+  return out.length ? out.join(", ") : null;
+}
+
+/* ===== URGENCIA =====
+   Por defecto la calcula la fecha de cierre. Si alguien la fija a mano, lo
+   elegido manda hasta que se vuelva a poner en "Automática". Lo manual vive
+   en "WebApp - Overrides", la pestaña de la web: no toca la hoja del cliente. */
+const URGENCIAS = ["Alta", "Media", "Baja"];
+function urgenciaManual(t){
+  const ov = overridesState[t.id];
+  const v = ov && ov.urgencia;
+  return URGENCIAS.indexOf(v) > -1 ? v : null;
+}
+function urgenciaClass(u){
+  return u === "Alta" ? "urg-alta" : u === "Media" ? "urg-media" : "urg-baja";
+}
+function setUrgencia(t, valor){
+  const antes = urgenciaManual(t);
+  if(antes === (valor || null)) return;
+  registrarLog_("Cambió la urgencia", t.tarea,
+    "Urgencia: " + (antes || "Automática") + " → " + (valor || "Automática"));
+  return patchSeedOverride(t.id, {urgencia: valor || ""});
+}
+function urgOptionsHtml(actual){
+  return ['<option value="">Automática (por fecha de cierre)</option>']
+    .concat(URGENCIAS.map(u=>`<option value="${u}"${u===actual?" selected":""}>${u}</option>`)).join("");
+}
+
+/* Caja de responsables: se marcan los que correspondan. */
+function respBoxHtml(id, actual){
+  const puestos = parseResp(actual);
+  const todos = [];
+  const vistos = {};
+  allResponsables().concat(puestos).forEach(r=>{
+    const k = String(r).toLowerCase();
+    if(!r || vistos[k]) return;
+    vistos[k] = true; todos.push(r);
+  });
+  return `<div class="resp-box" id="${id}">` + todos.map(r=>
+    `<label><input type="checkbox" value="${escHtml(r)}"${puestos.indexOf(r)>-1?" checked":""}><span>${escHtml(r)}</span></label>`
+  ).join("") + `</div><button type="button" class="resp-add" data-for="${id}">+ Agregar responsable…</button>`;
+}
+function respBoxValue(root, id){
+  const caja = root.querySelector("#" + id);
+  if(!caja) return null;
+  return joinResp(Array.prototype.slice.call(caja.querySelectorAll("input:checked")).map(i=>i.value));
+}
+function wireRespBox(root){
+  root.querySelectorAll(".resp-add").forEach(btn=>{
+    btn.onclick = ()=>{
+      const nombre = (prompt("Nombre del nuevo responsable:") || "").trim();
+      if(!nombre) return;
+      const caja = root.querySelector("#" + btn.dataset.for);
+      const ya = Array.prototype.slice.call(caja.querySelectorAll("input"))
+        .filter(i=> i.value.toLowerCase() === nombre.toLowerCase())[0];
+      if(ya){ ya.checked = true; return; }
+      if(RESPONSABLES.indexOf(nombre) === -1) RESPONSABLES.push(nombre);
+      const lab = document.createElement("label");
+      lab.innerHTML = `<input type="checkbox" value="${escHtml(nombre)}" checked><span>${escHtml(nombre)}</span>`;
+      caja.appendChild(lab);
+      caja.scrollTop = caja.scrollHeight;
+    };
+  });
+}
+
 function applyFilters(list){
   const f = state.filters;
   return list.filter(t=>{
@@ -1532,7 +1626,7 @@ function applyFilters(list){
     if(f.estado!=="" && currentEstado(t)!==f.estado) return false;
     if(f.responsable!==""){
       if(f.responsable==="__none__"){ if(t.responsable) return false; }
-      else if(t.responsable!==f.responsable) return false;
+      else if(parseResp(t.responsable).indexOf(f.responsable) === -1) return false;
     }
     if(f.prioridad!=="" && urgencia(t, currentEstado(t))!==f.prioridad) return false;
     return true;
@@ -1693,7 +1787,7 @@ function renderFilterBar(root, opts){
     <div class="fgroup -buscar"><label>Buscar</label>
       <input type="search" data-q placeholder="Palabra, tema, responsable…" autocomplete="off" spellcheck="false">
     </div>
-    <div class="fgroup"><label>Prioridad</label>
+    <div class="fgroup"><label>Urgencia</label>
       <select data-f="fase">
         <option value="">Todas</option>
         ${[0].concat(FASE_IDS).map(k=>`<option value="${k}">${k===0 ? "Etapa 1" : (k>3 ? "Transversal" : "P"+k)}</option>`).join("")}
@@ -1759,6 +1853,7 @@ function taskRow(t, n){
   const row = document.createElement("div");
   const estado = currentEstado(t);
   const overdue = isOverdue(t, estado);
+  const urg = urgencia(t, estado);
   const link = taskLink(t);
   row.className = "task-row" + (overdue ? " -overdue" : "");
   const stClass = estadoClass(estado);
@@ -1769,7 +1864,8 @@ function taskRow(t, n){
     <div class="col-resp"><span class="tk-resp">${respLabel(t.responsable)}</span></div>
     <div class="col-dates">
       <span><b>Inicio</b> ${fmtDate(t.inicio)}</span><br>
-      <span><b>Cierre</b> ${fmtDate(t.cierre || t.tiempo)}</span>
+      <span><b>Cierre</b> ${fmtDate(t.cierre || t.tiempo)}</span><br>
+      <span class="urg-chip ${urgenciaClass(urg)}${urgenciaManual(t)?" -mano":""}" title="${urgenciaManual(t)?"Elegida a mano":"Automática, por la fecha de cierre"}">${urg}</span>
     </div>
     <div class="col-status">
       <select class="status-select ${stClass}" data-task="${t.id}">
@@ -2262,8 +2358,8 @@ function openDetailModal(t){
       <div class="field"><label class="flabel">Tema</label><input type="text" id="ed-tema" value="${esc(t.tema)}"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label class="flabel">Responsable</label>
-        <select id="ed-resp">${respSelectHtml(t.responsable)}</select>
+      <div class="field"><label class="flabel">Responsables <span class="fhint">(podés marcar varios)</span></label>
+        ${respBoxHtml("ed-resp", t.responsable)}
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="ed-estado">${ESTADOS.map(e=>`<option value="${e}" ${e===estado?"selected":""}>${estadoLabel(e)}</option>`).join("")}</select>
@@ -2273,8 +2369,13 @@ function openDetailModal(t){
       <div class="field"><label class="flabel">Inicio</label><input type="date" id="ed-inicio" value="${t.inicio||""}"></div>
       <div class="field"><label class="flabel">Cierre</label><input type="date" id="ed-cierre" value="${t.cierre||t.tiempo||""}"></div>
     </div>
-    <div class="field"><label class="flabel">Prioridad</label>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Prioridad</label>
       <select id="ed-prio">${["","P1","P2","P3","Transversal"].map(o=>`<option value="${o}" ${o===(t.prioridad||"")?"selected":""}>${escHtml(prioOptionLabel(o))}</option>`).join("")}</select>
+      </div>
+      <div class="field"><label class="flabel">Urgencia</label>
+        <select id="ed-urg">${urgOptionsHtml(urgenciaManual(t))}</select>
+      </div>
     </div>
     <div class="field"><label class="flabel">Observaciones / entregable</label><textarea id="ed-obs" rows="2">${esc(t.obs)}</textarea></div>
     <div class="field">
@@ -2291,7 +2392,7 @@ function openDetailModal(t){
   `;
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#ed-cancel").onclick = closeModal;
-  wireRespSelect(box.querySelector("#ed-resp"));
+  wireRespBox(box);
   /* Duplicar: abre "Nueva tarea" con los datos de esta, para editar la copia antes de guardarla. */
   box.querySelector("#task-duplicate").onclick = ()=>{
     openAddTaskModal({
@@ -2304,17 +2405,20 @@ function openDetailModal(t){
     if(flagMissing(box, [[box.querySelector("#ed-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
     const val = id => box.querySelector(id).value.trim() || null;
     const orig = {prioridad:t.prioridad, tarea:t.tarea, area:t.area, tema:t.tema, responsable:t.responsable, inicio:t.inicio, cierre:t.cierre||t.tiempo, obs:t.obs};
-    const inputs = {prioridad:"#ed-prio", tarea:"#ed-tarea", area:"#ed-area", tema:"#ed-tema", responsable:"#ed-resp", inicio:"#ed-inicio", cierre:"#ed-cierre", obs:"#ed-obs"};
+    const inputs = {prioridad:"#ed-prio", tarea:"#ed-tarea", area:"#ed-area", tema:"#ed-tema", inicio:"#ed-inicio", cierre:"#ed-cierre", obs:"#ed-obs"};
     const fields = {};
     Object.keys(inputs).forEach(k=>{
       const before = orig[k]==null ? null : (String(orig[k]).trim() || null);
       const after = val(inputs[k]);
       if(after!==before) fields[k] = after;
     });
+    const respElegidos = respBoxValue(box, "ed-resp");
+    if(respElegidos !== (orig.responsable==null ? null : (String(orig.responsable).trim() || null))) fields.responsable = respElegidos;
     const nuevosLinks = joinLinks([1,2,3].map(n=>box.querySelector("#ed-link"+n).value));
     if(nuevosLinks !== joinLinks(parseLinks(link))) fields.link = nuevosLinks;
     const nuevoEstado = box.querySelector("#ed-estado").value;
     if(nuevoEstado!==estado) fields.estado = nuevoEstado;
+    setUrgencia(t, box.querySelector("#ed-urg").value || null);
     if(Object.keys(fields).length) saveTaskEdits(t, fields);
     closeModal();
   };
@@ -2376,8 +2480,8 @@ function openAddTaskModal(prefill){
       <div class="field"><label class="flabel">Tema</label><input type="text" id="nt-tema" placeholder="Ej: Redes Sociales"></div>
     </div>
     <div class="field-row">
-      <div class="field"><label class="flabel">Responsable</label>
-        <select id="nt-resp">${respSelectHtml(copia ? copia.responsable : "")}</select>
+      <div class="field"><label class="flabel">Responsables <span class="fhint">(podés marcar varios)</span></label>
+        ${respBoxHtml("nt-resp", copia ? copia.responsable : "")}
       </div>
       <div class="field"><label class="flabel">Estado</label>
         <select id="nt-estado">${ESTADOS.map(e=>`<option value="${e}">${estadoLabel(e)}</option>`).join("")}</select>
@@ -2387,8 +2491,13 @@ function openAddTaskModal(prefill){
       <div class="field"><label class="flabel">Inicio</label><input type="date" id="nt-inicio"></div>
       <div class="field"><label class="flabel">Cierre</label><input type="date" id="nt-cierre"></div>
     </div>
-    <div class="field"><label class="flabel">Prioridad</label>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Prioridad</label>
       <select id="nt-prio">${["P1","P2","P3","Transversal"].map(o=>`<option value="${o}">${escHtml(prioOptionLabel(o))}</option>`).join("")}</select>
+      </div>
+      <div class="field"><label class="flabel">Urgencia</label>
+        <select id="nt-urg">${urgOptionsHtml("")}</select>
+      </div>
     </div>
     <div class="field"><label class="flabel">Observaciones (opcional)</label><input type="text" id="nt-obs"></div>
     <div class="field"><label class="flabel">Links (opcional, hasta 3)</label>
@@ -2404,7 +2513,6 @@ function openAddTaskModal(prefill){
     set("#nt-tarea", copia.tarea);
     set("#nt-area", copia.area);
     set("#nt-tema", copia.tema);
-    set("#nt-resp", copia.responsable);
     set("#nt-estado", copia.estado);
     set("#nt-inicio", copia.inicio);
     set("#nt-cierre", copia.cierre);
@@ -2414,22 +2522,31 @@ function openAddTaskModal(prefill){
   }
   box.querySelector(".modal-close").onclick = closeModal;
   box.querySelector("#nt-cancel").onclick = closeModal;
-  wireRespSelect(box.querySelector("#nt-resp"));
+  wireRespBox(box);
   box.querySelector("#nt-submit").onclick = ()=>{
     const tarea = box.querySelector("#nt-tarea").value.trim();
     if(flagMissing(box, [[box.querySelector("#nt-tarea"),"el nombre de la tarea"]], box.querySelector(".modal-actions"))) return;
-    addCustomTask({
+    const urgNueva = box.querySelector("#nt-urg").value || null;
+    const alta = addCustomTask({
       tarea,
       prioridad: box.querySelector("#nt-prio").value || null,
       area: box.querySelector("#nt-area").value.trim() || null,
       tema: box.querySelector("#nt-tema").value.trim() || null,
-      responsable: box.querySelector("#nt-resp").value.trim() || null,
+      responsable: respBoxValue(box, "nt-resp"),
       obs: box.querySelector("#nt-obs").value.trim() || null,
       inicio: box.querySelector("#nt-inicio").value || null,
       cierre: box.querySelector("#nt-cierre").value || null,
       link: joinLinks([1,2,3].map(n=>box.querySelector("#nt-link"+n).value)),
       estado: box.querySelector("#nt-estado").value,
     });
+    /* La urgencia va por los overrides, que son por id, y el id definitivo
+       recién existe cuando la hoja devuelve la tarea ya creada. */
+    if(urgNueva && alta && alta.then){
+      alta.then(()=>{
+        const nueva = trackedTasks().filter(x=> x.tarea === tarea).pop();
+        if(nueva) setUrgencia(nueva, urgNueva);
+      });
+    }
     closeModal();
   };
   abrirModal();
@@ -2480,7 +2597,7 @@ function buildExportRows(){
       "Inicio": t.inicio || "",
       "Cierre": t.cierre || t.tiempo || "",
       "Estado": estadoLabel(estado),
-      "Prioridad": urgencia(t, estado),
+      "Urgencia": urgencia(t, estado),
       "Vencida": isOverdue(t, estado) ? "Sí" : "No",
       "Links": parseLinks(taskLink(t)).join(" | "),
       "Entregable / Obs.": t.obs || "",
