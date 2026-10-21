@@ -185,6 +185,10 @@ a{color:inherit}
 }
 .filter-clear:hover{color:var(--hazard)}
 .result-count{font-size:12px;color:var(--muted);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.busq-aviso{font-size:13px;line-height:1.5;color:var(--muted);margin:-4px 0 14px;padding:9px 12px;border-left:4px solid var(--ink);background:var(--card)}
+.busq-aviso b{color:var(--ink)}
+.busq-aviso .link-btn{background:none;border:none;padding:0;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;color:var(--ink)}
+.busq-aviso .link-btn:hover{color:var(--hazard)}
 
 /* ===== FASE GROUP HEADER (plan view) ===== */
 .group-head{
@@ -446,7 +450,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261021-1740";
+  window.APP_VERSION = "20261021-1750";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1483,6 +1487,47 @@ function coincideBusqueda_(t, q){
   return sinTildes_(q).split(/\s+/).filter(Boolean).every(p=> texto.indexOf(p) !== -1);
 }
 
+/* Escribir rápido se come o cambia una letra. Si la búsqueda exacta no trae
+   nada, se vuelve a probar admitiendo una diferencia (dos en palabras largas),
+   y se avisa en pantalla que lo que se muestra son parecidos. */
+function distanciaHasta_(a, b, tope){
+  if(Math.abs(a.length - b.length) > tope) return tope + 1;
+  let fila = [];
+  for(let j = 0; j <= b.length; j++) fila.push(j);
+  for(let i = 1; i <= a.length; i++){
+    let previa = fila[0];
+    fila[0] = i;
+    let mejor = i;
+    for(let j = 1; j <= b.length; j++){
+      const guardo = fila[j];
+      fila[j] = Math.min(fila[j] + 1, fila[j-1] + 1, previa + (a.charAt(i-1) === b.charAt(j-1) ? 0 : 1));
+      previa = guardo;
+      if(fila[j] < mejor) mejor = fila[j];
+    }
+    if(mejor > tope) return tope + 1;
+  }
+  return fila[b.length];
+}
+function toleranciaDe_(palabra){
+  return palabra.length >= 8 ? 2 : palabra.length >= 5 ? 1 : 0;
+}
+function coincideAprox_(t, q){
+  const palabras = sinTildes_(q).split(/\s+/).filter(Boolean);
+  const texto = textoBuscable_(t).split(/[^a-z0-9]+/).filter(Boolean);
+  return palabras.every(p=>{
+    const tope = toleranciaDe_(p);
+    return texto.some(w=> w.indexOf(p) !== -1 || (tope > 0 && distanciaHasta_(p, w, tope) <= tope));
+  });
+}
+/* Los mismos filtros de siempre, pero con el texto en modo tolerante. */
+function aproximados_(pool, q){
+  const guardado = state.filters.q;
+  state.filters.q = "";
+  const base = applyFilters(pool);
+  state.filters.q = guardado;
+  return base.filter(t=> coincideAprox_(t, q));
+}
+
 function applyFilters(list){
   const f = state.filters;
   return list.filter(t=>{
@@ -1800,11 +1845,41 @@ function renderFinalizadas(root){
 
 function renderTaskGroups(root, pool, emptyMsg){
   renderFilterBar(root);
-  const tasks = applyFilters(pool);
+  const q = String(state.filters.q || "").trim();
+  let tasks = applyFilters(pool);
+  let aprox = false;
+  if(!tasks.length && q){
+    const cerca = aproximados_(pool, q);
+    if(cerca.length){ tasks = cerca; aprox = true; }
+  }
   const countEl = document.createElement("div");
   countEl.className = "result-count";
   countEl.textContent = tasks.length + " de " + pool.length + " tareas";
   root.appendChild(countEl);
+
+  if(aprox){
+    const nota = document.createElement("div");
+    nota.className = "busq-aviso";
+    nota.innerHTML = "Nada coincide exactamente con <b></b>. Te muestro lo más parecido.";
+    nota.querySelector("b").textContent = "«" + q + "»";
+    root.appendChild(nota);
+  }
+  /* Buscar desde el plan algo que ya se terminó parecía no encontrar nada:
+     ahora lo dice y lleva hasta donde está. */
+  if(q){
+    const otroLado = trackedTasks().filter(t=> tasks.indexOf(t) === -1 && pool.indexOf(t) === -1);
+    const alla = aprox ? aproximados_(otroLado, q) : applyFilters(otroLado);
+    if(alla.length){
+      const destino = state.view === "finalizadas" ? "plan" : "finalizadas";
+      const nota = document.createElement("div");
+      nota.className = "busq-aviso";
+      nota.innerHTML = "Hay <b>" + alla.length + "</b> " + (alla.length===1 ? "tarea que coincide" : "tareas que coinciden") +
+        " en " + (destino === "plan" ? "el plan de trabajo" : "finalizadas") +
+        '. <button class="link-btn" type="button">Ver ahí \u2197</button>';
+      nota.querySelector("button").onclick = ()=>{ state.view = destino; render(); };
+      root.appendChild(nota);
+    }
+  }
 
   const list = document.createElement("div");
   list.className = "task-list";
