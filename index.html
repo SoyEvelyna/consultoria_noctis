@@ -116,14 +116,6 @@ a{color:inherit}
 @media (max-width:520px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
 
 /* ===== ESTADO GENERAL BANNER ===== */
-.status-banner{
-  display:flex;align-items:center;gap:14px;border:2px solid var(--ink);padding:18px 24px;margin-bottom:48px;background:var(--card);
-}
-.status-banner .dot{width:14px;height:14px;flex:none;background:var(--signal)}
-.status-banner.-warn .dot{background:var(--chrome)}
-.status-banner.-risk .dot{background:var(--hazard)}
-.status-banner .txt b{font-size:15px;text-transform:uppercase;letter-spacing:.02em}
-.status-banner .txt span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 
 /* ===== FASE PROGRESS ROW ===== */
 .fase-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:56px}
@@ -507,7 +499,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261022-1515";
+  window.APP_VERSION = "20261022-1522";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1891,21 +1883,8 @@ function renderDashboard(root){
   const enProceso = withEstado.filter(x=>x.estado==="En proceso").length;
   const enRevision = withEstado.filter(x=>x.estado==="En revisión").length;
   const porHacer = withEstado.filter(x=>x.estado==="Por hacer").length;
-  const bloqueado = withEstado.filter(x=>x.estado==="Bloqueado").length;
   const atrasadas = withEstado.filter(x=>isOverdue(x.t, x.estado)).length;
   const avance = total ? Math.round((completado/total)*100) : 0;
-
-  let bannerClass = "", bannerTitle = "", bannerSub = "";
-  if(bloqueado>0 || atrasadas > total*0.15){
-    bannerClass="-risk"; bannerTitle="El proyecto necesita atención";
-    bannerSub = bloqueado>0 ? bloqueado+" tarea(s) bloqueada(s) y "+atrasadas+" atrasada(s)." : atrasadas+" tareas atrasadas sobre "+total+" totales.";
-  } else if(atrasadas>0){
-    bannerClass="-warn"; bannerTitle="En curso, con algunos pendientes";
-    bannerSub = atrasadas+" tarea(s) pasaron su fecha de cierre estimada.";
-  } else {
-    bannerClass=""; bannerTitle="En curso, buen ritmo";
-    bannerSub = "Sin bloqueos ni atrasos registrados hoy.";
-  }
 
   const upcoming = withEstado.filter(x=>x.estado!=="Completado" && dueDateOf(x.t))
     .sort((a,b)=> new Date(dueDateOf(a.t)) - new Date(dueDateOf(b.t))).slice(0,5);
@@ -1914,13 +1893,10 @@ function renderDashboard(root){
     <div class="view-head">
       <div>
         <h2 class="cond">Dashboard · <span class="hl">Noctis</span></h2>
-        <p class="sub">Resumen general del plan de acción del 1er trimestre — Etapa 1 (diagnóstico y estrategia) ya está cerrada.</p>
+        <p class="sub">Avance, prioridades, cómo viene el equipo y lo que vence pronto.</p>
       </div>
     </div>
 
-    <div class="status-banner ${bannerClass}"><span class="dot"></span>
-      <div class="txt"><b>${bannerTitle}</b><span>${bannerSub}</span></div>
-    </div>
 
     <div class="kpi-grid">
       <div class="kpi -accent"><span class="num mono-num">${avance}%</span><span class="lbl">Avance del proyecto</span></div>
