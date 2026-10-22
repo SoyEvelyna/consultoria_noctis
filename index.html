@@ -202,6 +202,41 @@ a{color:inherit}
 .links-add{margin-top:6px;background:none;border:none;padding:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-decoration:underline;color:var(--muted);cursor:pointer}
 .links-add:hover{color:var(--ink)}
 .links-add:disabled{opacity:.4;cursor:default;text-decoration:none}
+/* ===== BLOQUES DEL DASHBOARD ===== */
+.bloque-sep{height:0;border-top:2px solid var(--ink);margin:44px 0 24px}
+
+/* Cómo viene cada persona */
+.eq-row{display:grid;grid-template-columns:155px 1fr 58px;gap:16px;align-items:center;padding:14px 0;border-bottom:1.5px solid var(--rule)}
+.eq-quien{display:flex;flex-direction:column;gap:2px;min-width:0}
+.eq-quien b{font-size:15px;font-weight:800;line-height:1.2}
+.eq-quien span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.eq-med{min-width:0}
+.eq-bar{display:flex;height:12px;border:1.5px solid var(--ink);background:var(--paper);overflow:hidden}
+.eq-bar i{display:block;height:100%}
+.eq-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.eq-chip{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border:1.5px solid var(--ink);white-space:nowrap}
+.eq-pct{text-align:right;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.eq-pct span{display:block;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+@media (max-width:620px){
+  .eq-row{grid-template-columns:1fr 58px;row-gap:10px}
+  .eq-med{grid-column:1 / -1}
+}
+
+/* Reuniones por mes */
+.re-tot{display:flex;flex-wrap:wrap;border:2px solid var(--ink);margin-bottom:20px}
+.re-tot div{flex:1 1 130px;padding:14px 16px;border-right:2px solid var(--ink)}
+.re-tot div:last-child{border-right:none}
+.re-tot b{display:block;font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.re-tot span{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.re-mes{display:grid;grid-template-columns:150px 1fr 150px;gap:16px;align-items:center;padding:11px 0;border-bottom:1.5px solid var(--rule);font-size:13px}
+.re-mes .m{font-weight:700}
+.re-mes .barra{height:10px;background:var(--paper);border:1.5px solid var(--ink)}
+.re-mes .barra i{display:block;height:100%;background:var(--signal)}
+.re-mes .n{text-align:right;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+@media (max-width:620px){
+  .re-mes{grid-template-columns:1fr 120px}
+  .re-mes .barra{display:none}
+}
 .flabel .fhint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)}
 .busq-aviso{font-size:13px;line-height:1.5;color:var(--muted);margin:-4px 0 14px;padding:9px 12px;border-left:4px solid var(--ink);background:var(--card)}
 .busq-aviso b{color:var(--ink)}
@@ -472,7 +507,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261021-2059";
+  window.APP_VERSION = "20261022-1515";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1730,6 +1765,124 @@ function render(){
 /* =====================================================================
    RENDER: DASHBOARD
    ===================================================================== */
+/* =====================================================================
+   DASHBOARD · cómo viene cada persona y cuántas reuniones hubo
+   ===================================================================== */
+/* Una tarea con varios responsables cuenta para cada uno: lo que se quiere
+   saber es cuánto tiene encima cada persona, no repartir la tarea. */
+function statsEquipo(){
+  const mapa = {};
+  trackedTasks().forEach(t=>{
+    const estado = currentEstado(t);
+    const quienes = parseResp(t.responsable);
+    (quienes.length ? quienes : ["Sin asignar"]).forEach(r=>{
+      const p = mapa[r] || (mapa[r] = {nombre:r, total:0, porEstado:{}});
+      p.total++;
+      p.porEstado[estado] = (p.porEstado[estado] || 0) + 1;
+    });
+  });
+  return Object.keys(mapa).map(k=>mapa[k]).sort((a,b)=>{
+    if(a.nombre === "Sin asignar") return 1;
+    if(b.nombre === "Sin asignar") return -1;
+    return b.total - a.total || a.nombre.localeCompare(b.nombre);
+  });
+}
+
+/* La duración viene escrita a mano ("2 hs", "1,5", "90 min"): se interpreta
+   lo que haya y lo que no se entiende cuenta como cero. */
+function horasDeReunion_(v){
+  if(v === null || v === undefined || v === "") return 0;
+  if(typeof v === "number") return v;
+  const s = String(v).toLowerCase().replace(",", ".");
+  const min = s.match(/([\d.]+)\s*min/);
+  if(min) return Number(min[1]) / 60;
+  const m = s.match(/([\d.]+)/);
+  return m ? Number(m[1]) : 0;
+}
+function reunionesTodas(){
+  const out = [];
+  RAW.etapa1.forEach(e=>{ if(e.fecha) out.push({fecha: String(e.fecha), horas: horasDeReunion_(e.hs)}); });
+  meetingsState.forEach(m=>{ if(m.fecha) out.push({fecha: String(m.fecha), horas: horasDeReunion_(m.duracion)}); });
+  return out;
+}
+function fmtHoras_(h){
+  const r = Math.round(h * 10) / 10;
+  return (Math.abs(r - Math.round(r)) < 0.05) ? String(Math.round(r)) : String(r).replace(".", ",");
+}
+function nombreMes_(clave){
+  const d = new Date(clave + "-01T12:00:00");
+  if(isNaN(d)) return clave;
+  const txt = d.toLocaleDateString("es-AR", {month:"long", year:"numeric"});
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
+}
+
+function pintarEquipo(root){
+  const cont = root.querySelector("#equipo-stats");
+  if(!cont) return;
+  const gente = statsEquipo();
+  if(!gente.length){
+    cont.innerHTML = `<div class="empty-note">Todavía no hay tareas cargadas.</div>`;
+    return;
+  }
+  gente.forEach(p=>{
+    const listas = p.porEstado["Completado"] || 0;
+    const pct = p.total ? Math.round(listas * 100 / p.total) : 0;
+    const conEstado = ESTADOS.filter(e=> p.porEstado[e]);
+    const fila = document.createElement("div");
+    fila.className = "eq-row";
+    fila.innerHTML = `
+      <div class="eq-quien"><b></b><span>${p.total} ${p.total===1?"tarea":"tareas"}</span></div>
+      <div class="eq-med">
+        <div class="eq-bar">${conEstado.map(e=>
+          `<i class="${estadoClass(e)}" style="width:${p.porEstado[e]*100/p.total}%" title="${estadoLabel(e)}: ${p.porEstado[e]}"></i>`).join("")}</div>
+        <div class="eq-chips">${conEstado.map(e=>
+          `<span class="eq-chip ${estadoClass(e)}">${p.porEstado[e]} ${estadoLabel(e)} · ${Math.round(p.porEstado[e]*100/p.total)}%</span>`).join("")}</div>
+      </div>
+      <div class="eq-pct">${pct}%<span>listas</span></div>`;
+    fila.querySelector("b").textContent = p.nombre;
+    cont.appendChild(fila);
+  });
+}
+
+function pintarReuniones(root){
+  const cont = root.querySelector("#reuniones-stats");
+  if(!cont) return;
+  const rs = reunionesTodas();
+  if(!rs.length){
+    cont.innerHTML = `<div class="empty-note">Todavía no hay reuniones registradas.</div>`;
+    return;
+  }
+  const horas = rs.reduce((a, r)=> a + r.horas, 0);
+  const porMes = {};
+  rs.forEach(r=>{
+    const k = r.fecha.slice(0, 7);
+    const m = porMes[k] || (porMes[k] = {n:0, horas:0});
+    m.n++; m.horas += r.horas;
+  });
+  const claves = Object.keys(porMes).sort().reverse();
+  const maxN = Math.max.apply(null, claves.map(k=> porMes[k].n));
+
+  const tot = document.createElement("div");
+  tot.className = "re-tot";
+  tot.innerHTML = `
+    <div><b>${rs.length}</b><span>Reuniones en total</span></div>
+    <div><b>${fmtHoras_(horas)} hs</b><span>Horas en total</span></div>
+    <div><b>${claves.length}</b><span>${claves.length===1?"Mes con encuentros":"Meses con encuentros"}</span></div>
+    <div><b>${fmtHoras_(horas / claves.length)} hs</b><span>Promedio por mes</span></div>`;
+  cont.appendChild(tot);
+
+  claves.forEach(k=>{
+    const m = porMes[k];
+    const fila = document.createElement("div");
+    fila.className = "re-mes";
+    fila.innerHTML = `
+      <span class="m">${nombreMes_(k)}</span>
+      <span class="barra"><i style="width:${Math.round(m.n * 100 / maxN)}%"></i></span>
+      <span class="n">${m.n} ${m.n===1?"reunión":"reuniones"} · ${fmtHoras_(m.horas)} hs</span>`;
+    cont.appendChild(fila);
+  });
+}
+
 function renderDashboard(root){
   const tasks = trackedTasks();
   const withEstado = tasks.map(t=>({t, estado:currentEstado(t)}));
@@ -1801,8 +1954,30 @@ function renderDashboard(root){
       </div>
     </div>
 
+    <div class="bloque-sep"></div>
     <div class="view-head" style="margin-bottom:14px">
-      <h2 class="cond" style="font-size:24px">Próximos hitos</h2>
+      <div>
+        <h2 class="cond" style="font-size:24px">Estado de tareas del equipo</h2>
+        <p class="sub">Cuántas tareas tiene cada persona y en qué estado están. Una tarea con varios responsables cuenta para cada uno.</p>
+      </div>
+    </div>
+    <div id="equipo-stats"></div>
+
+    <div class="bloque-sep"></div>
+    <div class="view-head" style="margin-bottom:14px">
+      <div>
+        <h2 class="cond" style="font-size:24px">Reuniones</h2>
+        <p class="sub">Encuentros registrados por mes, con las horas que llevaron.</p>
+      </div>
+    </div>
+    <div id="reuniones-stats"></div>
+
+    <div class="bloque-sep"></div>
+    <div class="view-head" style="margin-bottom:14px">
+      <div>
+        <h2 class="cond" style="font-size:24px">Próximos hitos</h2>
+        <p class="sub">Las cinco tareas sin terminar con el cierre más cercano.</p>
+      </div>
     </div>
     <div class="task-list" id="upcoming-list"></div>
   `;
@@ -1831,6 +2006,9 @@ function renderDashboard(root){
       <div class="fase-nums"><span><b>${RAW.etapa1.length}</b>/${RAW.etapa1.length} listas</span><span><b>100%</b></span></div>
   `;
   faseRow.insertBefore(etapa1Card, faseRow.firstChild);
+
+  pintarEquipo(root);
+  pintarReuniones(root);
 
   const upcomingRoot = root.querySelector("#upcoming-list");
   if(upcoming.length===0){
