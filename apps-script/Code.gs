@@ -107,6 +107,7 @@ function handleAction_(action, p) {
     case "setPrioridad": return setPrioridad_(p.n, p.texto, p.desc);
     case "setOverride": return setOverride_(p.taskId, p.patch || {});
     case "addLog": return addRow_(SHEET_LOGS, SHEET_SCHEMAS[SHEET_LOGS], p);
+    case "quitarOpcion": return quitarOpcion_(p.campo, p.valor);
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
       Object.assign({ id: "n" + Date.now(), createdAt: nowIso_() }, p));
     case "deleteNote": return deleteRow_(SHEET_NOTES, p.id);
@@ -1081,4 +1082,81 @@ function permitirVariosResponsables() {
   });
   Logger.log(JSON.stringify(out, null, 2));
   return out;
+}
+
+/* =====================================================================
+   QUITAR UN NOMBRE DE LA LISTA DEL DESPLEGABLE
+   Saca un valor de la lista que ofrece RESPONSABLE (o ÁREA) sin tocar una
+   sola celda escrita: la lista es lo que el desplegable sugiere, no el dato.
+   Lo llama la web desde la ficha de la tarea.
+   ===================================================================== */
+function quitarOpcion_(campo, valor) {
+  function limpio_(v) {
+    return String(v === null || v === undefined ? "" : v).trim().toUpperCase()
+      .replace(/[\u00C1\u00C0\u00C4\u00C2]/g, "A").replace(/[\u00C9\u00C8\u00CB\u00CA]/g, "E")
+      .replace(/[\u00CD\u00CC\u00CF\u00CE]/g, "I").replace(/[\u00D3\u00D2\u00D6\u00D4]/g, "O")
+      .replace(/[\u00DA\u00D9\u00DC\u00DB]/g, "U");
+  }
+  var buscado = limpio_(campo || "RESPONSABLE");
+  var quitar = String(valor === null || valor === undefined ? "" : valor).trim();
+  if (!quitar) throw new Error("No me dijiste qué valor quitar.");
+  var objetivo = limpio_(quitar);
+  var hojas = [], enUso = 0;
+
+  ss_().getSheets().forEach(function (sheet) {
+    var nombre = sheet.getName();
+    if (nombre.indexOf("WebApp") === 0) return;
+    var values = sheet.getDataRange().getValues();
+    var fila = -1, col = -1;
+    for (var r = 0; r < values.length && fila === -1; r++) {
+      for (var c = 0; c < values[r].length; c++) {
+        if (limpio_(values[r][c]) === buscado) { fila = r; col = c; break; }
+      }
+    }
+    if (fila === -1) return;
+    var desde = fila + 2;
+    var filas = sheet.getMaxRows() - desde + 1;
+    if (filas < 1) return;
+    var rango = sheet.getRange(desde, col + 1, filas, 1);
+
+    /* Si alguna celda todavía lo tiene escrito, no se saca de la lista: el
+       desplegable dejaría de explicar un valor que está ahí a la vista. */
+    rango.getValues().forEach(function (f) {
+      String(f[0] === null || f[0] === undefined ? "" : f[0]).split(/\s*[,\/]\s*/).forEach(function (x) {
+        if (limpio_(x) === objetivo) enUso++;
+      });
+    });
+
+    var vistos = {}, quedan = [];
+    function sumar(v) {
+      var x = String(v === null || v === undefined ? "" : v).trim();
+      if (!x || limpio_(x) === objetivo || vistos[x.toUpperCase()]) return;
+      vistos[x.toUpperCase()] = true;
+      quedan.push(x);
+    }
+    rango.getDataValidations().forEach(function (f) {
+      var dv = f[0];
+      if (!dv) return;
+      try {
+        var tipo = dv.getCriteriaType(), crit = dv.getCriteriaValues();
+        if (tipo === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) {
+          crit[0].forEach(sumar);
+        } else if (tipo === SpreadsheetApp.DataValidationCriteria.VALUE_IN_RANGE) {
+          crit[0].getValues().forEach(function (f2) { sumar(f2[0]); });
+        }
+      } catch (e) {}
+    });
+    if (!quedan.length) return;
+    hojas.push({ hoja: nombre, rango: rango, lista: quedan });
+  });
+
+  if (enUso) {
+    throw new Error("No puedo quitar \"" + quitar + "\" de la lista: todavía está escrito en " +
+      enUso + (enUso === 1 ? " celda." : " celdas."));
+  }
+  hojas.forEach(function (h) {
+    h.rango.setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(h.lista, true).setAllowInvalid(true).build());
+  });
+  return { quitado: quitar, campo: buscado, hojas: hojas.map(function (h) { return h.hoja; }) };
 }

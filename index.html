@@ -187,7 +187,11 @@ a{color:inherit}
 /* ===== RESPONSABLES (varios por tarea) ===== */
 .resp-box{border:2px solid var(--ink);background:var(--paper);max-height:150px;overflow-y:auto;padding:6px 9px}
 .resp-box label{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;font-weight:600;cursor:pointer}
-.resp-box input{width:14px;height:14px;flex:none;accent-color:var(--ink);cursor:pointer}
+.resp-box input[type="checkbox"]{width:14px;height:14px;flex:none;accent-color:var(--ink);cursor:pointer}
+.resp-box label span{flex:1;min-width:0}
+.resp-del{margin-left:auto;background:none;border:none;padding:0 2px;font-size:15px;line-height:1;color:var(--rule);cursor:pointer;flex:none}
+.resp-box label:hover .resp-del{color:var(--muted)}
+.resp-del:hover{color:var(--hazard)}
 .resp-add{margin-top:6px;background:none;border:none;padding:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-decoration:underline;color:var(--muted);cursor:pointer}
 .resp-add:hover{color:var(--ink)}
 .links-box{display:flex;flex-direction:column;gap:6px}
@@ -499,7 +503,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261022-1525";
+  window.APP_VERSION = "20261022-1833";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -581,12 +585,18 @@ function initials(r){
 }
 function urgencia(t, estado){ return urgenciaManual(t) || urgenciaAuto(t, estado); }
 function respLabel(r){ return r || "Sin asignar"; }
+/* Nombres sacados de la lista: desaparecen al instante y el Sheet los saca
+   de su desplegable en cuanto responde. */
+const RESP_QUITADOS = [];
 function allResponsables(){
   const base = SHEET_OPCIONES.responsable && SHEET_OPCIONES.responsable.length ? SHEET_OPCIONES.responsable : RESPONSABLES;
-  const set = new Set(base);
+  /* La lista del Sheet trae combinados viejos ("Anto/Caro") de cuando una
+     celda llevaba varias personas. Son dos nombres, no uno. */
+  const set = new Set();
+  base.forEach(r=> parseResp(r).forEach(x=> set.add(x)));
   TASKS.forEach(t=>{ if(t.responsable && t.source!=="etapa1") parseResp(t.responsable).forEach(r=>set.add(r)); });
   customTasksState.forEach(c=>{ if(c.responsable) parseResp(c.responsable).forEach(r=>set.add(r)); });
-  return Array.from(set);
+  return Array.from(set).filter(r=> RESP_QUITADOS.indexOf(r) === -1);
 }
 function allAreas(){
   const set = new Set((SHEET_OPCIONES.area || []).concat(AREAS_NUEVAS));
@@ -1278,7 +1288,7 @@ async function chequearVersion_(){
 }
 
 /* Acciones que se pueden repetir sin duplicar nada: solo esas se reintentan. */
-const ACCIONES_REPETIBLES = ["updateTask","setOverride","deleteTask","deleteNote","deleteMeetingSheet"];
+const ACCIONES_REPETIBLES = ["updateTask","setOverride","deleteTask","deleteNote","deleteMeetingSheet","quitarOpcion"];
 
 /* Los ids se calculan del contenido de la fila, así que cambian si alguien
    edita el texto de la tarea o la mueve. Cuando el backend dice que no la
@@ -1683,7 +1693,8 @@ function respBoxHtml(id, actual){
     vistos[k] = true; todos.push(r);
   });
   return `<div class="resp-box" id="${id}">` + todos.map(r=>
-    `<label><input type="checkbox" value="${escHtml(r)}"${puestos.indexOf(r)>-1?" checked":""}><span>${escHtml(r)}</span></label>`
+    `<label><input type="checkbox" value="${escHtml(r)}"${puestos.indexOf(r)>-1?" checked":""}><span>${escHtml(r)}</span>`
+    + `<button type="button" class="resp-del" data-nombre="${escHtml(r)}" title="Quitar de la lista" aria-label="Quitar ${escHtml(r)} de la lista">&times;</button></label>`
   ).join("") + `</div><button type="button" class="resp-add" data-for="${id}">+ Agregar responsable…</button>`;
 }
 function respBoxValue(root, id){
@@ -1691,7 +1702,36 @@ function respBoxValue(root, id){
   if(!caja) return null;
   return joinResp(Array.prototype.slice.call(caja.querySelectorAll("input:checked")).map(i=>i.value));
 }
+/* Quitar un nombre no toca ninguna tarea: la lista es lo que el desplegable
+   ofrece, no el dato. Por eso sólo se puede sacar lo que nadie tiene asignado. */
+function quitarResponsable(nombre){
+  if(RESP_QUITADOS.indexOf(nombre) === -1) RESP_QUITADOS.push(nombre);
+  const i = RESPONSABLES.indexOf(nombre);
+  if(i > -1) RESPONSABLES.splice(i, 1);
+  registrarLog_("Quitó un responsable de la lista", nombre, "");
+  if(sheetMode()) return sheetWrite("quitarOpcion", {campo:"RESPONSABLE", valor:nombre});
+}
+
 function wireRespBox(root){
+  root.querySelectorAll(".resp-del").forEach(btn=>{
+    btn.onclick = (e)=>{
+      /* El botón vive dentro del <label>: sin esto, sacarlo marcaría la casilla. */
+      e.preventDefault();
+      e.stopPropagation();
+      const nombre = btn.dataset.nombre;
+      const usan = trackedTasks().filter(t=> parseResp(t.responsable).indexOf(nombre) > -1);
+      if(usan.length){
+        alert("No puedo quitar «" + nombre + "» de la lista: lo tienen asignado " + usan.length +
+          (usan.length === 1 ? " tarea." : " tareas.") +
+          "\n\nCambiá primero el responsable de esas tareas y después sacalo.");
+        return;
+      }
+      if(!confirm("¿Quitar «" + nombre + "» de la lista de responsables?\n\nNo toca ninguna tarea: sólo deja de ofrecerlo.")) return;
+      const fila = btn.parentNode;
+      if(fila && fila.parentNode) fila.parentNode.removeChild(fila);
+      quitarResponsable(nombre);
+    };
+  });
   root.querySelectorAll(".resp-add").forEach(btn=>{
     btn.onclick = ()=>{
       const nombre = (prompt("Nombre del nuevo responsable:") || "").trim();
