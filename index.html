@@ -503,7 +503,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261022-1833";
+  window.APP_VERSION = "20261022-1845";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -585,9 +585,6 @@ function initials(r){
 }
 function urgencia(t, estado){ return urgenciaManual(t) || urgenciaAuto(t, estado); }
 function respLabel(r){ return r || "Sin asignar"; }
-/* Nombres sacados de la lista: desaparecen al instante y el Sheet los saca
-   de su desplegable en cuanto responde. */
-const RESP_QUITADOS = [];
 function allResponsables(){
   const base = SHEET_OPCIONES.responsable && SHEET_OPCIONES.responsable.length ? SHEET_OPCIONES.responsable : RESPONSABLES;
   /* La lista del Sheet trae combinados viejos ("Anto/Caro") de cuando una
@@ -596,7 +593,7 @@ function allResponsables(){
   base.forEach(r=> parseResp(r).forEach(x=> set.add(x)));
   TASKS.forEach(t=>{ if(t.responsable && t.source!=="etapa1") parseResp(t.responsable).forEach(r=>set.add(r)); });
   customTasksState.forEach(c=>{ if(c.responsable) parseResp(c.responsable).forEach(r=>set.add(r)); });
-  return Array.from(set).filter(r=> RESP_QUITADOS.indexOf(r) === -1);
+  return Array.from(set);
 }
 function allAreas(){
   const set = new Set((SHEET_OPCIONES.area || []).concat(AREAS_NUEVAS));
@@ -1704,11 +1701,18 @@ function respBoxValue(root, id){
 }
 /* Quitar un nombre no toca ninguna tarea: la lista es lo que el desplegable
    ofrece, no el dato. Por eso sólo se puede sacar lo que nadie tiene asignado. */
+/* Cuántas tareas lo tienen asignado hoy. */
+function usosDeResponsable_(nombre){
+  return trackedTasks().filter(t=> parseResp(t.responsable).indexOf(nombre) > -1).length;
+}
+
 function quitarResponsable(nombre){
-  if(RESP_QUITADOS.indexOf(nombre) === -1) RESP_QUITADOS.push(nombre);
   const i = RESPONSABLES.indexOf(nombre);
   if(i > -1) RESPONSABLES.splice(i, 1);
   registrarLog_("Quitó un responsable de la lista", nombre, "");
+  /* No se esconde de este lado: se le pide a la hoja que lo saque y la
+     relectura decide. Si la hoja lo rechaza, el nombre sigue estando, que es
+     la verdad. */
   if(sheetMode()) return sheetWrite("quitarOpcion", {campo:"RESPONSABLE", valor:nombre});
 }
 
@@ -1719,10 +1723,10 @@ function wireRespBox(root){
       e.preventDefault();
       e.stopPropagation();
       const nombre = btn.dataset.nombre;
-      const usan = trackedTasks().filter(t=> parseResp(t.responsable).indexOf(nombre) > -1);
-      if(usan.length){
-        alert("No puedo quitar «" + nombre + "» de la lista: lo tienen asignado " + usan.length +
-          (usan.length === 1 ? " tarea." : " tareas.") +
+      const usan = usosDeResponsable_(nombre);
+      if(usan){
+        alert("No puedo quitar «" + nombre + "» de la lista: lo tienen asignado " + usan +
+          (usan === 1 ? " tarea." : " tareas.") +
           "\n\nCambiá primero el responsable de esas tareas y después sacalo.");
         return;
       }
