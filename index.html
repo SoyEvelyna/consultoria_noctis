@@ -198,6 +198,14 @@ a{color:inherit}
 .links-add{margin-top:6px;background:none;border:none;padding:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-decoration:underline;color:var(--muted);cursor:pointer}
 .links-add:hover{color:var(--ink)}
 .links-add:disabled{opacity:.4;cursor:default;text-decoration:none}
+/* ===== OBJETIVOS: el bloque editable ===== */
+.obj-card{border:2px solid var(--ink);background:var(--card);padding:16px 18px;margin-bottom:16px}
+.obj-card .flabel{display:block;margin-bottom:8px}
+.obj-card input[type="text"],.obj-card textarea{width:100%;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-family:inherit;font-size:14px;padding:8px 10px;margin-bottom:8px}
+.obj-card textarea{resize:vertical;line-height:1.45}
+.obj-acciones{display:flex;align-items:center;gap:12px;margin-top:4px}
+.obj-estado{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.obj-card .prio-avance{margin:10px 0 12px}
 /* ===== BLOQUES DEL DASHBOARD ===== */
 .bloque-sep{height:0;border-top:2px solid var(--ink);margin:44px 0 24px}
 
@@ -503,7 +511,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261022-1845";
+  window.APP_VERSION = "20261022-2304";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1553,7 +1561,7 @@ const VIEWS = [
   {id:"reuniones", label:"Reuniones"},
   {id:"entregables", label:"Documentos"},
   {id:"metricas", label:"Métricas"},
-  {id:"notas", label:"Notas"},
+  {id:"notas", label:"Objetivos"},
   {id:"logs", label:"Logs"},
 ];
 const ESTADOS = ["Por hacer","En proceso","En revisión","Testear","Completado"];
@@ -2525,10 +2533,76 @@ function renderMetricas(root){
   });
 }
 
+/* =====================================================================
+   OBJETIVOS · lo que define el trimestre, editable
+   El objetivo y las prioridades viven arriba de la hoja de proceso. Acá se
+   escriben; la hoja sigue siendo la que manda.
+   ===================================================================== */
+function guardarObjetivo(texto){
+  const limpio = String(texto === null || texto === undefined ? "" : texto).trim();
+  if(limpio === String(OBJETIVO || "").trim()) return;
+  registrarLog_("Cambió el objetivo", limpio.slice(0, 140), "");
+  OBJETIVO = limpio;
+  render();
+  if(sheetMode()) return sheetWrite("setObjetivo", {texto: limpio});
+}
+
+function guardarPrioridad(n, texto, desc){
+  const p = (PRIORIDADES || []).filter(x=> Number(x.n) === Number(n))[0];
+  if(!p) return;
+  const tt = String(texto || "").trim();
+  const d = String(desc || "").trim();
+  if(tt === String(p.tt || "").trim() && d === String(p.desc || "").trim()) return;
+  if(!tt){ alert("La prioridad necesita un título."); return; }
+  registrarLog_("Cambió la prioridad P" + n, tt,
+    String(p.tt || "").trim() && String(p.tt).trim() !== tt ? "Antes: " + p.tt : "");
+  p.tt = tt; p.desc = d;
+  render();
+  if(sheetMode()) return sheetWrite("setPrioridad", {n: Number(n), texto: tt, desc: d});
+}
+
+/* Suma una prioridad al final del bloque. La fila nueva la inserta la hoja,
+   copiando el formato de la anterior, así que la relectura la trae sola. */
+function nuevaPrioridad(){
+  const texto = (prompt("Título de la prioridad nueva (ej: EVENTOS):") || "").trim();
+  if(!texto) return;
+  if(!sheetMode()){
+    alert("Sin conexión con el Sheet no puedo agregar prioridades: la fila la crea la hoja.");
+    return;
+  }
+  registrarLog_("Agregó una prioridad", texto, "");
+  return sheetWrite("agregarPrioridad", {texto: texto, desc: ""});
+}
+
+function pintarPrioridadesEditables(cont){
+  if(!cont) return;
+  cont.innerHTML = "";
+  (PRIORIDADES || []).forEach(p=>{
+    const n = Number(p.n);
+    const a = avanceFase(n);
+    const card = document.createElement("div");
+    card.className = "obj-card";
+    card.innerHTML = `
+      <label class="flabel">Prioridad ${p.n}</label>
+      <input type="text" class="prio-tt" placeholder="Título de la prioridad">
+      <textarea class="prio-desc" rows="2" placeholder="Para qué sirve este frente (opcional)"></textarea>
+      <div class="prio-avance">
+        <div class="fase-bar"><i style="width:${a.pct}%"></i></div>
+        <div class="fase-nums"><span><b>${a.done}</b>/${a.total} listas</span><span><b>${a.pct}%</b></span></div>
+      </div>
+      <div class="obj-acciones"><button class="btn-primary btn-sm" type="button">Guardar</button></div>`;
+    card.querySelector(".prio-tt").value = p.tt || "";
+    card.querySelector(".prio-desc").value = p.desc || "";
+    card.querySelector("button").onclick = ()=> guardarPrioridad(
+      n, card.querySelector(".prio-tt").value, card.querySelector(".prio-desc").value);
+    cont.appendChild(card);
+  });
+}
+
 function renderNotas(root){
   root.innerHTML = `<div class="view-head"><div>
-      <h2 class="cond">Notas · <span class="hl">Noctis</span></h2>
-      <p class="sub">Objetivo, prioridades del trimestre, y bitácora de decisiones y observaciones del equipo.</p>
+      <h2 class="cond">Objetivos · <span class="hl">Noctis</span></h2>
+      <p class="sub">El objetivo del trimestre y las prioridades, para editarlos acá mismo. Abajo, la bitácora del equipo.</p>
     </div></div>`;
 
   const grid = document.createElement("div");
@@ -2537,28 +2611,19 @@ function renderNotas(root){
 
   const left = document.createElement("div");
   left.innerHTML = `
-    <div class="strategy-block" style="margin-bottom:0">
-      <div class="obj-head"><span class="micro">Objetivo del trimestre</span><p>${OBJETIVO}</p></div>
-      <div class="prio-list" style="grid-template-columns:1fr">
-        ${PRIORIDADES.map(p=>{
-          const a = avanceFase(Number(p.n));
-          return `<div class="prio-item" style="border-right:none;border-bottom:2px solid var(--ink)">
-            <span class="n">Prioridad ${p.n}</span><h4>${escHtml(p.tt)}</h4><p>${escHtml(p.desc||"")}</p>
-            <div class="prio-avance">
-              <div class="fase-bar"><i style="width:${a.pct}%"></i></div>
-              <div class="fase-nums"><span><b>${a.done}</b>/${a.total} listas</span><span><b>${a.pct}%</b></span></div>
-            </div>
-            <button class="btn-secondary btn-sm" data-prio="${p.n}" style="margin-top:12px">Editar prioridad ${p.n}</button>
-          </div>`;}).join("")}
-      </div>
+    <div class="obj-card">
+      <label class="flabel">Objetivo del trimestre</label>
+      <textarea id="obj-texto" rows="4" placeholder="¿Qué estamos tratando de conseguir?"></textarea>
+      <div class="obj-acciones"><button class="btn-primary btn-sm" type="button" id="obj-guardar">Guardar objetivo</button></div>
     </div>
+    <div id="prio-editor"></div>
+    <button class="btn-secondary" type="button" id="prio-nueva">+ Agregar prioridad</button>
   `;
+  left.querySelector("#obj-texto").value = OBJETIVO || "";
+  left.querySelector("#obj-guardar").onclick = ()=> guardarObjetivo(left.querySelector("#obj-texto").value);
+  left.querySelector("#prio-nueva").onclick = nuevaPrioridad;
   grid.appendChild(left);
-
-  /* Título y detalle de cada prioridad se escriben en la hoja de proceso. */
-  left.querySelectorAll("[data-prio]").forEach(btn=>{
-    btn.onclick = ()=> openPrioridadModal(Number(btn.getAttribute("data-prio")));
-  });
+  pintarPrioridadesEditables(left.querySelector("#prio-editor"));
 
   const right = document.createElement("div");
   right.innerHTML = `
@@ -2751,39 +2816,6 @@ function openDetailModal(t){
   abrirModal();
 }
 
-/* En la hoja, el título y el detalle de una prioridad viven en la misma
-   celda: la primera línea es el título y el resto la explicación. Por eso se
-   editan juntos acá y se mandan por separado. */
-function openPrioridadModal(n){
-  const p = PRIORIDADES.find(x=>Number(x.n)===n) || {n, tt:"", desc:""};
-  const box = document.getElementById("modal-box");
-  box.innerHTML = `
-    <button class="modal-close" aria-label="Cerrar">&times;</button>
-    <h3>Prioridad ${n} del trimestre</h3>
-    <div class="field"><label class="flabel">Título *</label>
-      <input type="text" id="pr-tt" value="${escHtml(p.tt||"")}" placeholder="Ej: Tener control del nuevo mix de pacientes"></div>
-    <div class="field"><label class="flabel">Detalle</label>
-      <textarea id="pr-desc" rows="4" placeholder="Lo que explica esa prioridad, debajo del titular">${escHtml(p.desc||"")}</textarea></div>
-    <div class="modal-actions">
-      <button class="btn-primary" id="pr-save">Guardar</button>
-      <button class="btn-secondary" id="pr-cancel">Cancelar</button>
-    </div>
-  `;
-  box.querySelector(".modal-close").onclick = closeModal;
-  box.querySelector("#pr-cancel").onclick = closeModal;
-  box.querySelector("#pr-save").onclick = ()=>{
-    const tt = box.querySelector("#pr-tt").value.trim();
-    if(flagMissing(box, [[box.querySelector("#pr-tt"),"el título de la prioridad"]], box.querySelector(".modal-actions"))) return;
-    const desc = box.querySelector("#pr-desc").value.trim();
-    const actual = PRIORIDADES.find(x=>Number(x.n)===n);
-    if(actual){ actual.tt = tt; actual.desc = desc; } else PRIORIDADES.push({n, tt, desc});
-    buildFaseMeta_();
-    render();
-    if(sheetMode()) sheetWrite("setPrioridad", {n, texto: tt, desc: desc});
-    closeModal();
-  };
-  abrirModal();
-}
 
 function openAddTaskModal(prefill){
   // Con "prefill" es un duplicado; desde el botón llega el evento del clic, que se ignora.

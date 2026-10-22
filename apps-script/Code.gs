@@ -108,6 +108,8 @@ function handleAction_(action, p) {
     case "setOverride": return setOverride_(p.taskId, p.patch || {});
     case "addLog": return addRow_(SHEET_LOGS, SHEET_SCHEMAS[SHEET_LOGS], p);
     case "quitarOpcion": return quitarOpcion_(p.campo, p.valor);
+    case "setObjetivo": return setObjetivo_(p.texto);
+    case "agregarPrioridad": return agregarPrioridad_(p.texto, p.desc);
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
       Object.assign({ id: "n" + Date.now(), createdAt: nowIso_() }, p));
     case "deleteNote": return deleteRow_(SHEET_NOTES, p.id);
@@ -1159,4 +1161,76 @@ function quitarOpcion_(campo, valor) {
       .requireValueInList(h.lista, true).setAllowInvalid(true).build());
   });
   return { quitado: quitar, campo: buscado, hojas: hojas.map(function (h) { return h.hoja; }) };
+}
+
+/* =====================================================================
+   OBJETIVO Y PRIORIDADES, EDITABLES DESDE LA WEB
+   El objetivo es la primera celda con texto de la columna A debajo de
+   "OBJETIVO 1" que no sea la pregunta. Las prioridades son filas con el
+   número en A y el título —más su descripción en las líneas siguientes— en B.
+   ===================================================================== */
+function filaDelObjetivo_(L) {
+  var values = L.values;
+  var objetivoRow = findLabelRow_(values, "OBJETIVO 1");
+  var prioridadesRow = findLabelRow_(values, "PRIORIDADES");
+  if (objetivoRow === -1) throw new Error("No encuentro el bloque OBJETIVO 1 en la hoja de proceso");
+  var fin = prioridadesRow === -1 ? values.length : prioridadesRow;
+  for (var r = objetivoRow + 1; r < fin; r++) {
+    var v = cell_(values[r], 0);
+    if (v && String(v).charAt(0) !== "¿") return r;
+  }
+  /* Todavía sin objetivo: va justo debajo de la pregunta. */
+  for (var q = objetivoRow + 1; q < fin; q++) {
+    var t = cell_(values[q], 0);
+    if (t && String(t).charAt(0) === "¿") return q + 1;
+  }
+  return objetivoRow + 1;
+}
+
+function setObjetivo_(texto) {
+  var L = procesoLayout_();
+  var fila = filaDelObjetivo_(L);
+  L.sheet.getRange(fila + 1, 1).setValue(String(texto === null || texto === undefined ? "" : texto));
+  return { objetivo: texto || "", fila: fila + 1 };
+}
+
+/* Las filas numeradas del bloque PRIORIDADES. */
+function filasPrioridades_(L) {
+  var values = L.values;
+  var inicio = findLabelRow_(values, "PRIORIDADES");
+  var iniciativasRow = findLabelRow_(values, "INICIATIVAS");
+  if (inicio === -1) throw new Error("No encuentro el bloque PRIORIDADES en la hoja de proceso");
+  var fin = iniciativasRow === -1 ? L.header : iniciativasRow;
+  var filas = [];
+  for (var r = inicio + 1; r < fin; r++) {
+    var n = cell_(values[r], 0);
+    if (n === null || isNaN(Number(n))) continue;
+    filas.push({ fila: r, n: Number(n) });
+  }
+  return { inicio: inicio, fin: fin, filas: filas };
+}
+
+function agregarPrioridad_(texto, desc) {
+  var L = procesoLayout_();
+  var B = filasPrioridades_(L);
+  if (!B.filas.length) throw new Error("No encuentro ninguna prioridad para copiar el formato");
+  var ultima = B.filas[0];
+  B.filas.forEach(function (f) { if (f.n > ultima.n) ultima = f; });
+  if (ultima.n >= 9) throw new Error("Ya hay 9 prioridades, que es el máximo que maneja el tablero");
+
+  var filaOrigen = ultima.fila + 1, filaNueva = filaOrigen + 1;
+  var ancho = Math.max(L.sheet.getLastColumn(), 2);
+  L.sheet.insertRowAfter(filaOrigen);
+  L.sheet.getRange(filaOrigen, 1, 1, ancho).copyTo(L.sheet.getRange(filaNueva, 1, 1, ancho), { formatOnly: true });
+  L.sheet.getRange(filaOrigen, 1, 1, ancho).getMergedRanges().forEach(function (m) {
+    if (m.getNumRows() !== 1) return;
+    L.sheet.getRange(filaNueva, m.getColumn(), 1, m.getNumColumns()).merge();
+  });
+
+  var lineas = [String(texto === null || texto === undefined ? "" : texto).trim()];
+  var d = (desc === null || desc === undefined) ? "" : String(desc).trim();
+  if (d) lineas = lineas.concat(d.split(/\n/));
+  L.sheet.getRange(filaNueva, 1).setValue(ultima.n + 1);
+  L.sheet.getRange(filaNueva, 2).setValue(lineas.join("\n"));
+  return { n: ultima.n + 1, texto: lineas[0], fila: filaNueva };
 }
