@@ -233,6 +233,24 @@ a{color:inherit}
 .ag-item .acciones{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;align-items:center}
 .ag-item .row-delete{position:absolute;top:8px;right:0}
 .ag-vacio{padding:26px 8px;text-align:center;color:var(--muted);font-size:14px;border:2px dashed var(--rule);margin-bottom:20px}
+/* Lo primero que se ve: cuándo es la que viene. */
+.prox{background:var(--ink);color:var(--paper);padding:18px 20px;margin-bottom:22px;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.prox .txt{flex:1 1 280px;min-width:0}
+.prox .micro{color:var(--paper);opacity:.65;display:block;margin-bottom:5px}
+.prox h4{font-size:21px;line-height:1.2;margin-bottom:5px}
+.prox .cuando{font-size:13px;font-weight:700}
+.prox .quienes{font-size:13px;opacity:.7;margin-top:3px}
+.prox .btn-link{background:var(--chrome);color:var(--ink);border-color:var(--chrome);flex:none}
+.prox .sinlink{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;opacity:.6}
+.prox.-nada{background:none;color:var(--muted);border:2px dashed var(--rule);font-size:14px;display:block;padding:18px 20px}
+.cal-dia{cursor:pointer}
+.cal-dia.-fuera{cursor:default}
+.cal-dia:not(.-fuera):hover{outline:2px solid var(--ink);outline-offset:-2px}
+.ag-abrir{margin-bottom:22px}
+.mes-head{display:flex;align-items:baseline;gap:12px;margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
+.mes-head:first-child{margin-top:0}
+.mes-head h4{font-size:15px;text-transform:uppercase;letter-spacing:.02em}
+.mes-head .cuenta{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 
 /* ===== BLOQUES DEL DASHBOARD ===== */
 .bloque-sep{height:0;border-top:2px solid var(--ink);margin:44px 0 24px}
@@ -539,7 +557,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261023-1500";
+  window.APP_VERSION = "20261023-1517";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -2414,6 +2432,22 @@ function fmtDiaLargo_(iso){
 }
 
 /* Calendario del mes: un recuadro por día, con lo que haya agendado. */
+/* El formulario de agendar vive cerrado: lo abre el botón o un día del
+   calendario, y así el calendario queda pegado a lo que viene. */
+function abrirAgendar_(iso){
+  const form = document.getElementById("ag-form");
+  if(!form) return;
+  form.hidden = false;
+  const boton = document.getElementById("ag-abrir");
+  if(boton) boton.hidden = true;
+  const campo = document.getElementById("ag-fecha");
+  if(campo && iso) campo.value = iso;
+  form.scrollIntoView({block: "center"});
+  const tema = document.getElementById("ag-tema");
+  if(tema) tema.focus();
+}
+function agendarEnFecha_(iso){ abrirAgendar_(iso); }
+
 function renderCalendario(cont, clave){
   const [anio, mes] = clave.split("-").map(Number);
   const primero = new Date(anio, mes - 1, 1);
@@ -2453,8 +2487,15 @@ function renderCalendario(cont, clave){
         const destino = document.getElementById("ag-" + r.id);
         if(destino) destino.scrollIntoView({block:"center"});
       };
+      /* El clic del evento no tiene que disparar también el del día. */
+      ev.addEventListener("click", e=> e.stopPropagation());
       celda.appendChild(ev);
     });
+    /* Tocar un día abre el formulario con esa fecha puesta. */
+    if(d.getMonth() === mes - 1){
+      celda.title = "Agendar una reunión el " + fmtDiaLargo_(iso);
+      celda.onclick = ()=> agendarEnFecha_(iso);
+    }
     grid.appendChild(celda);
   }
   cont.appendChild(grid);
@@ -2469,6 +2510,44 @@ function renderReuniones(root){
   /* ===== Próximas reuniones ===== */
   if(!state.mesAgenda) state.mesAgenda = new Date().toISOString().slice(0,7);
 
+  /* Lo primero: cuándo es la que viene. */
+  const prox = document.createElement("div");
+  const queViene = agendaProximas()[0];
+  if(queViene){
+    prox.className = "prox";
+    const hora = fmtHora_(queViene.hora);
+    prox.innerHTML = `
+      <div class="txt">
+        <span class="micro">Próxima reunión</span>
+        <h4 class="cond"></h4>
+        <div class="cuando"></div>
+        <div class="quienes"></div>
+      </div>`;
+    prox.querySelector("h4").textContent = queViene.tema || "Reunión";
+    prox.querySelector(".cuando").textContent =
+      fmtDiaLargo_(queViene.fecha) + (hora ? " · " + hora + " hs" : "");
+    prox.querySelector(".quienes").textContent =
+      queViene.convocados ? "Convocados: " + queViene.convocados : "Sin convocados anotados";
+    if(queViene.link){
+      const a = document.createElement("a");
+      a.className = "btn-secondary btn-link";
+      a.href = toHref(queViene.link);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "Entrar ↗";
+      prox.appendChild(a);
+    } else {
+      const sin = document.createElement("span");
+      sin.className = "sinlink";
+      sin.textContent = "Sin link de ingreso";
+      prox.appendChild(sin);
+    }
+  } else {
+    prox.className = "prox -nada";
+    prox.textContent = "No hay ninguna reunión agendada. Tocá un día del calendario para cargar la primera.";
+  }
+  root.appendChild(prox);
+
   const agenda = document.createElement("div");
   agenda.innerHTML = `
     <div class="cal-head">
@@ -2479,19 +2558,24 @@ function renderReuniones(root){
     </div>
     <div id="cal-grid"></div>
     <div id="ag-lista"></div>
-    <div class="meeting-compose" style="margin-top:4px">
+    <button class="btn-primary ag-abrir" type="button" id="ag-abrir">+ Agendar reunión</button>
+    <div class="meeting-compose" id="ag-form" style="margin-top:4px" hidden>
       <label class="micro" style="display:block;margin-bottom:10px">Agendar una reunión</label>
       <div class="field-row">
         <div class="field"><label class="flabel">Fecha</label><input type="date" id="ag-fecha"></div>
         <div class="field"><label class="flabel">Hora</label><input type="time" id="ag-hora" value="10:00"></div>
       </div>
       <div class="field"><label class="flabel">Tema</label><input type="text" id="ag-tema" placeholder="Ej: Revisión del plan de noviembre"></div>
-      <div class="field"><label class="flabel">Convocados</label><input type="text" id="ag-convocados" placeholder="Ej: Eve, Ger, el equipo comercial"></div>
+      <div class="field"><label class="flabel">Convocados <span class="fhint">(marcá los que van)</span></label>
+        ${respBoxHtml("ag-convocados", "")}
+      </div>
       <div class="field"><label class="flabel">Link para entrar</label><input type="url" id="ag-link" placeholder="https://meet.google.com/…"></div>
       <button class="btn-primary" type="button" id="ag-submit">Agendar</button>
     </div>
   `;
   root.appendChild(agenda);
+  wireRespBox(agenda);
+  agenda.querySelector("#ag-abrir").onclick = ()=> abrirAgendar_();
 
   const pintarMes = ()=>{
     const [a, m] = state.mesAgenda.split("-").map(Number);
@@ -2564,7 +2648,7 @@ function renderReuniones(root){
       fecha: fecha,
       hora: agenda.querySelector("#ag-hora").value || "",
       tema: tema,
-      convocados: agenda.querySelector("#ag-convocados").value.trim(),
+      convocados: respBoxValue(agenda, "ag-convocados") || "",
       link: agenda.querySelector("#ag-link").value.trim()
     });
   };
@@ -2600,6 +2684,17 @@ function renderReuniones(root){
     </div>
     <button class="btn-primary" id="mt-submit">Guardar reunión</button>
   `;
+  const abrirHecho = document.createElement("button");
+  abrirHecho.className = "btn-secondary ag-abrir";
+  abrirHecho.type = "button";
+  abrirHecho.textContent = "+ Registrar un encuentro ya hecho";
+  abrirHecho.onclick = ()=>{
+    compose.hidden = false;
+    abrirHecho.hidden = true;
+    compose.scrollIntoView({block: "center"});
+  };
+  root.appendChild(abrirHecho);
+  compose.hidden = true;
   root.appendChild(compose);
   compose.querySelector("#mt-submit").addEventListener("click", ()=>{
     const fecha = compose.querySelector("#mt-fecha").value;
@@ -2620,7 +2715,21 @@ function renderReuniones(root){
   combined.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||"").localeCompare(a.createdAt||""));
 
   const log = document.createElement("div");
+  /* Agrupadas por mes: el listado corrido se hacía interminable. */
+  let mesActual = null;
+  const porMes = {};
+  combined.forEach(m=>{ const k = String(m.fecha || "").slice(0,7); porMes[k] = (porMes[k] || 0) + 1; });
   combined.forEach(m=>{
+    const claveMes = String(m.fecha || "").slice(0,7);
+    if(claveMes !== mesActual){
+      mesActual = claveMes;
+      const cab = document.createElement("div");
+      cab.className = "mes-head";
+      const n = porMes[claveMes] || 0;
+      cab.innerHTML = `<h4 class="cond"></h4><span class="cuenta">${n} ${n===1?"reunión":"reuniones"}</span>`;
+      cab.querySelector("h4").textContent = claveMes ? nombreMes_(claveMes) : "Sin fecha";
+      log.appendChild(cab);
+    }
     const item = document.createElement("div");
     item.className = "meeting-item" + (m.historical ? " -historical" : "");
     item.innerHTML = `
