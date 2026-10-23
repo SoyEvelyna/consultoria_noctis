@@ -557,7 +557,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261023-1517";
+  window.APP_VERSION = "20261023-1522";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -2398,6 +2398,71 @@ function agendaDelDia(iso){
   return agendaOrdenada().filter(r=> String(r.fecha||"") === iso);
 }
 
+/* Editar una agendada: casi siempre es para sumarle el link, que se consigue
+   después de crear la reunión en Meet. */
+async function updateAgenda(id, patch){
+  let i = -1;
+  agendaState.forEach((r, k)=>{ if(r.id === id) i = k; });
+  if(i < 0) return;
+  const antes = agendaState[i];
+  const cambios = Object.keys(patch).filter(k=> String(antes[k] || "") !== String(patch[k] || ""));
+  if(!cambios.length) return;
+  agendaState[i] = Object.assign({}, antes, patch);
+  registrarLog_("Editó una reunión agendada", agendaState[i].tema || "Reunión",
+    cambios.map(k=> k + ": " + (antes[k] || "—") + " → " + (patch[k] || "—")).join(" · "));
+  render();
+  if(sheetMode()) return sheetWrite("updateAgenda", {id: id, patch: patch});
+}
+
+function openAgendaModal(r){
+  const box = document.getElementById("modal-box");
+  box.innerHTML = `
+    <button class="modal-close" aria-label="Cerrar">&times;</button>
+    <h3>Editar reunión</h3>
+    <div class="field-row">
+      <div class="field"><label class="flabel">Fecha</label><input type="date" id="ed-ag-fecha"></div>
+      <div class="field"><label class="flabel">Hora</label><input type="time" id="ed-ag-hora"></div>
+    </div>
+    <div class="field"><label class="flabel">Tema</label><input type="text" id="ed-ag-tema"></div>
+    <div class="field"><label class="flabel">Convocados <span class="fhint">(marcá los que van)</span></label>
+      ${respBoxHtml("ed-ag-convocados", r.convocados || "")}
+    </div>
+    <div class="field"><label class="flabel">Link para entrar</label>
+      <input type="url" id="ed-ag-link" placeholder="https://meet.google.com/…">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" type="button" id="ed-ag-save">Guardar cambios</button>
+      <button class="btn-secondary" type="button" id="ed-ag-cancel">Cancelar</button>
+      <button class="btn-danger" type="button" id="ed-ag-del">Borrar de la agenda</button>
+    </div>`;
+  box.querySelector("#ed-ag-fecha").value = r.fecha || "";
+  box.querySelector("#ed-ag-hora").value = fmtHora_(r.hora);
+  box.querySelector("#ed-ag-tema").value = r.tema || "";
+  box.querySelector("#ed-ag-link").value = r.link || "";
+  wireRespBox(box);
+  box.querySelector(".modal-close").onclick = closeModal;
+  box.querySelector("#ed-ag-cancel").onclick = closeModal;
+  box.querySelector("#ed-ag-save").onclick = ()=>{
+    const tema = box.querySelector("#ed-ag-tema").value.trim();
+    if(flagMissing(box, [[box.querySelector("#ed-ag-fecha"),"la fecha"],
+      [box.querySelector("#ed-ag-tema"),"el tema"]], box.querySelector(".modal-actions"))) return;
+    updateAgenda(r.id, {
+      fecha: box.querySelector("#ed-ag-fecha").value,
+      hora: box.querySelector("#ed-ag-hora").value || "",
+      tema: tema,
+      convocados: respBoxValue(box, "ed-ag-convocados") || "",
+      link: box.querySelector("#ed-ag-link").value.trim()
+    });
+    closeModal();
+  };
+  box.querySelector("#ed-ag-del").onclick = ()=>{
+    if(!confirm("¿Borrar «" + (r.tema || "esta reunión") + "» de la agenda?")) return;
+    deleteAgenda(r.id);
+    closeModal();
+  };
+  abrirModal();
+}
+
 async function addAgenda(datos){
   const fila = Object.assign({id: "a" + Date.now() + Math.random().toString(36).slice(2,5),
     creadoPor: quienSoy_() || "", createdAt: new Date().toISOString()}, datos);
@@ -2537,10 +2602,12 @@ function renderReuniones(root){
       a.textContent = "Entrar ↗";
       prox.appendChild(a);
     } else {
-      const sin = document.createElement("span");
-      sin.className = "sinlink";
-      sin.textContent = "Sin link de ingreso";
-      prox.appendChild(sin);
+      const sumar = document.createElement("button");
+      sumar.className = "btn-secondary btn-link";
+      sumar.type = "button";
+      sumar.textContent = "Sumar link";
+      sumar.onclick = ()=> openAgendaModal(queViene);
+      prox.appendChild(sumar);
     }
   } else {
     prox.className = "prox -nada";
@@ -2632,6 +2699,12 @@ function renderReuniones(root){
         sin.textContent = "Sin link de ingreso";
         acciones.appendChild(sin);
       }
+      const editar = document.createElement("button");
+      editar.className = "btn-secondary btn-sm";
+      editar.type = "button";
+      editar.textContent = r.link ? "Editar" : "Editar · sumar link";
+      editar.onclick = ()=> openAgendaModal(r);
+      acciones.appendChild(editar);
       item.querySelector(".row-delete").onclick = ()=>{
         if(confirm("¿Borrar «" + (r.tema || "esta reunión") + "» de la agenda?")) deleteAgenda(r.id);
       };
