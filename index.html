@@ -247,6 +247,29 @@ a{color:inherit}
 .cal-dia.-fuera{cursor:default}
 .cal-dia:not(.-fuera):hover{outline:2px solid var(--ink);outline-offset:-2px}
 .ag-abrir{margin-bottom:22px}
+/* Dos columnas: a la izquierda lo que viene, a la derecha el calendario chico. */
+.ag-cols{display:grid;grid-template-columns:minmax(0,1fr) 352px;gap:34px;align-items:start;margin-bottom:10px}
+.ag-col{min-width:0}
+.ag-col-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--ink)}
+.ag-col-head h4{font-size:17px;text-transform:uppercase;letter-spacing:-.01em}
+.ag-col.-cal{border:2px solid var(--ink);padding:16px 16px 14px;background:var(--card)}
+.ag-col.-cal .cal-head{margin-bottom:10px;gap:10px}
+.ag-col.-cal .cal-head h4{font-size:14px}
+.ag-col.-cal .cal-nav{width:24px;height:24px;font-size:12px}
+.ag-col.-cal .cal-grid{margin-bottom:0;border-width:1.5px;border-right:none;border-bottom:none;grid-template-columns:repeat(7,minmax(0,1fr))}
+.ag-col.-cal .cal-dow{padding:4px 5px;font-size:9px;border-right-width:1.5px;border-bottom-width:1.5px}
+.ag-col.-cal .cal-dia{min-height:46px;padding:4px 5px;gap:2px;border-right-width:1.5px;border-bottom-width:1.5px}
+.ag-col.-cal .cal-dia .n{font-size:11px}
+/* En el calendario chico no entra el tema: queda la hora, y el detalle
+   completo está en la lista de al lado y en el globito del día. */
+.ag-col.-cal .cal-ev{font-size:9px;padding:1px 2px;text-align:center}
+.ag-col.-cal .cal-ev .t{display:none}
+.ag-col.-cal .cal-dia{min-width:0}
+.cal-pie{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.4}
+.view-head .sub.-linea{max-width:none}
+@media (max-width:900px){
+  .ag-cols{grid-template-columns:1fr;gap:26px}
+}
 .mes-head{display:flex;align-items:baseline;gap:12px;margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--ink)}
 .mes-head:first-child{margin-top:0}
 .mes-head h4{font-size:15px;text-transform:uppercase;letter-spacing:.02em}
@@ -557,7 +580,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261023-1522";
+  window.APP_VERSION = "20261023-1534";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -2545,8 +2568,8 @@ function renderCalendario(cont, clave){
       const ev = document.createElement("button");
       ev.type = "button";
       ev.className = "cal-ev";
-      ev.innerHTML = `<span class="h">${escHtml(fmtHora_(r.hora))}</span> `;
-      ev.appendChild(document.createTextNode(r.tema || "Reunión"));
+      ev.innerHTML = `<span class="h">${escHtml(fmtHora_(r.hora))}</span> <span class="t"></span>`;
+      ev.querySelector(".t").textContent = r.tema || "Reunión";
       ev.title = [fmtDiaLargo_(iso), fmtHora_(r.hora), r.tema, r.convocados].filter(Boolean).join(" · ");
       ev.onclick = ()=>{
         const destino = document.getElementById("ag-" + r.id);
@@ -2569,7 +2592,7 @@ function renderCalendario(cont, clave){
 function renderReuniones(root){
   root.innerHTML = `<div class="view-head"><div>
       <h2 class="cond">Reuniones · <span class="hl">Noctis</span></h2>
-      <p class="sub">Arriba, lo que viene: cuándo, con quién y por dónde se entra. Abajo, todo lo que ya se hizo.</p>
+      <p class="sub -linea">Lo que viene arriba; abajo, todo lo que ya se hizo.</p>
     </div></div>`;
 
   /* ===== Próximas reuniones ===== */
@@ -2617,16 +2640,14 @@ function renderReuniones(root){
 
   const agenda = document.createElement("div");
   agenda.innerHTML = `
-    <div class="cal-head">
-      <button class="cal-nav" type="button" id="cal-prev" aria-label="Mes anterior">&lsaquo;</button>
-      <h4 class="cond" id="cal-mes"></h4>
-      <button class="cal-hoy" type="button" id="cal-hoy">Hoy</button>
-      <button class="cal-nav" type="button" id="cal-next" aria-label="Mes siguiente">&rsaquo;</button>
-    </div>
-    <div id="cal-grid"></div>
-    <div id="ag-lista"></div>
-    <button class="btn-primary ag-abrir" type="button" id="ag-abrir">+ Agendar reunión</button>
-    <div class="meeting-compose" id="ag-form" style="margin-top:4px" hidden>
+    <div class="ag-cols">
+      <div class="ag-col">
+        <div class="ag-col-head">
+          <h4 class="cond">Próximas reuniones</h4>
+          <button class="btn-primary btn-sm" type="button" id="ag-abrir">+ Agendar reunión</button>
+        </div>
+        <div id="ag-lista"></div>
+        <div class="meeting-compose" id="ag-form" style="margin-top:4px" hidden>
       <label class="micro" style="display:block;margin-bottom:10px">Agendar una reunión</label>
       <div class="field-row">
         <div class="field"><label class="flabel">Fecha</label><input type="date" id="ag-fecha"></div>
@@ -2638,6 +2659,18 @@ function renderReuniones(root){
       </div>
       <div class="field"><label class="flabel">Link para entrar</label><input type="url" id="ag-link" placeholder="https://meet.google.com/…"></div>
       <button class="btn-primary" type="button" id="ag-submit">Agendar</button>
+        </div>
+      </div>
+      <aside class="ag-col -cal">
+        <div class="cal-head">
+          <button class="cal-nav" type="button" id="cal-prev" aria-label="Mes anterior">&lsaquo;</button>
+          <h4 class="cond" id="cal-mes"></h4>
+          <button class="cal-hoy" type="button" id="cal-hoy">Hoy</button>
+          <button class="cal-nav" type="button" id="cal-next" aria-label="Mes siguiente">&rsaquo;</button>
+        </div>
+        <div id="cal-grid"></div>
+        <p class="cal-pie">Tocá un día para agendar una reunión en esa fecha.</p>
+      </aside>
     </div>
   `;
   root.appendChild(agenda);
@@ -2669,7 +2702,7 @@ function renderReuniones(root){
   const lista = agenda.querySelector("#ag-lista");
   const proximas = agendaProximas();
   if(!proximas.length){
-    lista.innerHTML = `<div class="ag-vacio">No hay reuniones agendadas. Cargá la próxima acá abajo.</div>`;
+    lista.innerHTML = `<div class="ag-vacio">No hay reuniones agendadas. Tocá un día del calendario, o el botón de arriba.</div>`;
   } else {
     proximas.forEach(r=>{
       const item = document.createElement("div");
