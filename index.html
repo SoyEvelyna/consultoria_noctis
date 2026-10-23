@@ -206,6 +206,34 @@ a{color:inherit}
 .obj-acciones{display:flex;align-items:center;gap:12px;margin-top:4px}
 .obj-estado{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .obj-card .prio-avance{margin:10px 0 12px}
+/* ===== AGENDA · calendario de las próximas reuniones ===== */
+.cal-head{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.cal-head h4{font-size:17px;text-transform:uppercase;letter-spacing:-.01em;flex:1}
+.cal-nav{background:var(--paper);border:2px solid var(--ink);width:30px;height:30px;font-size:14px;font-weight:800;cursor:pointer;line-height:1}
+.cal-nav:hover{background:var(--chrome)}
+.cal-hoy{background:none;border:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-decoration:underline;cursor:pointer;color:var(--muted)}
+.cal-hoy:hover{color:var(--ink)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);border:2px solid var(--ink);border-right:none;border-bottom:none;margin-bottom:22px}
+.cal-dow{padding:6px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);background:var(--card)}
+.cal-dia{min-height:78px;padding:6px 7px;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);background:var(--card);display:flex;flex-direction:column;gap:3px}
+.cal-dia.-fuera{background:var(--paper);opacity:.45}
+.cal-dia.-hoy{background:var(--chrome)}
+.cal-dia .n{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.cal-ev{font-size:10px;font-weight:700;line-height:1.25;background:var(--signal);border:1.5px solid var(--ink);padding:2px 4px;cursor:pointer;text-align:left;width:100%;display:block}
+.cal-ev:hover{background:var(--ink);color:var(--paper)}
+.cal-ev .h{font-variant-numeric:tabular-nums}
+@media (max-width:620px){
+  .cal-dia{min-height:54px;padding:4px}
+  .cal-ev{font-size:9px}
+}
+.ag-item{border-left:4px solid var(--ink);padding:12px 0 12px 14px;margin-bottom:14px;position:relative}
+.ag-item .cuando{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.ag-item h5{font-size:16px;margin:3px 0 5px;line-height:1.25}
+.ag-item .quienes{font-size:13px;color:var(--muted);line-height:1.45}
+.ag-item .acciones{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;align-items:center}
+.ag-item .row-delete{position:absolute;top:8px;right:0}
+.ag-vacio{padding:26px 8px;text-align:center;color:var(--muted);font-size:14px;border:2px dashed var(--rule);margin-bottom:20px}
+
 /* ===== BLOQUES DEL DASHBOARD ===== */
 .bloque-sep{height:0;border-top:2px solid var(--ink);margin:44px 0 24px}
 
@@ -511,7 +539,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261022-2304";
+  window.APP_VERSION = "20261023-1500";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -1262,6 +1290,7 @@ function aplicarLectura(data){
   customTasksState = (data.customTasks || []).sort((a,b)=> (b.createdAt||"").localeCompare(a.createdAt||""));
   meetingsState = data.meetings || [];
   logsState = data.logs || [];
+  agendaState = data.agenda || [];
 }
 
 /* Vuelve a leer el Sheet después de guardar, para quedar igual que la hoja. */
@@ -2332,17 +2361,232 @@ function flagMissing(container, fields, anchor){
   return true;
 }
 
+/* =====================================================================
+   AGENDA · las reuniones que todavía no pasaron
+   Viven en la pestaña "WebApp - Agenda" del Sheet. Las que ya se hicieron
+   siguen viniendo de la hoja 01, que es donde las escribe Fathom.
+   ===================================================================== */
+let agendaState = [];
+
+function agendaOrdenada(){
+  return agendaState.slice().sort((a,b)=>
+    String((a.fecha||"") + " " + (a.hora||"")).localeCompare(String((b.fecha||"") + " " + (b.hora||""))));
+}
+function agendaProximas(){
+  const hoy = new Date().toISOString().slice(0,10);
+  return agendaOrdenada().filter(r=> String(r.fecha||"") >= hoy);
+}
+function agendaDelDia(iso){
+  return agendaOrdenada().filter(r=> String(r.fecha||"") === iso);
+}
+
+async function addAgenda(datos){
+  const fila = Object.assign({id: "a" + Date.now() + Math.random().toString(36).slice(2,5),
+    creadoPor: quienSoy_() || "", createdAt: new Date().toISOString()}, datos);
+  agendaState.push(fila);
+  registrarLog_("Agendó una reunión", fila.tema || "Reunión",
+    [fila.fecha, fila.hora, fila.convocados].filter(Boolean).join(" · "));
+  render();
+  if(sheetMode()) return sheetWrite("addAgenda", fila);
+}
+async function deleteAgenda(id){
+  const fila = agendaState.filter(r=> r.id === id)[0];
+  agendaState = agendaState.filter(r=> r.id !== id);
+  if(fila) registrarLog_("Borró una reunión agendada", fila.tema || "Reunión",
+    [fila.fecha, fila.hora].filter(Boolean).join(" · "));
+  render();
+  if(sheetMode()) return sheetWrite("deleteAgenda", {id: id});
+}
+
+function fmtHora_(h){
+  const t = String(h === null || h === undefined ? "" : h).trim();
+  if(!t) return "";
+  const m = t.match(/^(\d{1,2})[:.]?(\d{2})?/);
+  if(!m) return t;
+  const hh = String(Math.min(23, Number(m[1]))).padStart(2, "0");
+  return hh + ":" + (m[2] || "00");
+}
+function fmtDiaLargo_(iso){
+  const d = new Date(String(iso) + "T12:00:00");
+  if(isNaN(d)) return String(iso || "");
+  const txt = d.toLocaleDateString("es-AR", {weekday:"long", day:"numeric", month:"long"});
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
+}
+
+/* Calendario del mes: un recuadro por día, con lo que haya agendado. */
+function renderCalendario(cont, clave){
+  const [anio, mes] = clave.split("-").map(Number);
+  const primero = new Date(anio, mes - 1, 1);
+  const hoyIso = new Date().toISOString().slice(0,10);
+  /* La semana arranca el lunes, que es como la mira el equipo. */
+  const corrimiento = (primero.getDay() + 6) % 7;
+  const arranque = new Date(anio, mes - 1, 1 - corrimiento);
+
+  const grid = document.createElement("div");
+  grid.className = "cal-grid";
+  ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].forEach(d=>{
+    const c = document.createElement("div");
+    c.className = "cal-dow";
+    c.textContent = d;
+    grid.appendChild(c);
+  });
+
+  for(let i = 0; i < 42; i++){
+    const d = new Date(arranque.getFullYear(), arranque.getMonth(), arranque.getDate() + i);
+    const iso = new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    const celda = document.createElement("div");
+    celda.className = "cal-dia"
+      + (d.getMonth() !== mes - 1 ? " -fuera" : "")
+      + (iso === hoyIso ? " -hoy" : "");
+    const num = document.createElement("span");
+    num.className = "n";
+    num.textContent = d.getDate();
+    celda.appendChild(num);
+    agendaDelDia(iso).forEach(r=>{
+      const ev = document.createElement("button");
+      ev.type = "button";
+      ev.className = "cal-ev";
+      ev.innerHTML = `<span class="h">${escHtml(fmtHora_(r.hora))}</span> `;
+      ev.appendChild(document.createTextNode(r.tema || "Reunión"));
+      ev.title = [fmtDiaLargo_(iso), fmtHora_(r.hora), r.tema, r.convocados].filter(Boolean).join(" · ");
+      ev.onclick = ()=>{
+        const destino = document.getElementById("ag-" + r.id);
+        if(destino) destino.scrollIntoView({block:"center"});
+      };
+      celda.appendChild(ev);
+    });
+    grid.appendChild(celda);
+  }
+  cont.appendChild(grid);
+}
+
 function renderReuniones(root){
   root.innerHTML = `<div class="view-head"><div>
       <h2 class="cond">Reuniones · <span class="hl">Noctis</span></h2>
-      <p class="sub">Registro de cada encuentro de trabajo: fecha, quién participó, duración y qué se trató. Incluye el historial de la Etapa 1.</p>
+      <p class="sub">Arriba, lo que viene: cuándo, con quién y por dónde se entra. Abajo, todo lo que ya se hizo.</p>
     </div></div>`;
+
+  /* ===== Próximas reuniones ===== */
+  if(!state.mesAgenda) state.mesAgenda = new Date().toISOString().slice(0,7);
+
+  const agenda = document.createElement("div");
+  agenda.innerHTML = `
+    <div class="cal-head">
+      <button class="cal-nav" type="button" id="cal-prev" aria-label="Mes anterior">&lsaquo;</button>
+      <h4 class="cond" id="cal-mes"></h4>
+      <button class="cal-hoy" type="button" id="cal-hoy">Hoy</button>
+      <button class="cal-nav" type="button" id="cal-next" aria-label="Mes siguiente">&rsaquo;</button>
+    </div>
+    <div id="cal-grid"></div>
+    <div id="ag-lista"></div>
+    <div class="meeting-compose" style="margin-top:4px">
+      <label class="micro" style="display:block;margin-bottom:10px">Agendar una reunión</label>
+      <div class="field-row">
+        <div class="field"><label class="flabel">Fecha</label><input type="date" id="ag-fecha"></div>
+        <div class="field"><label class="flabel">Hora</label><input type="time" id="ag-hora" value="10:00"></div>
+      </div>
+      <div class="field"><label class="flabel">Tema</label><input type="text" id="ag-tema" placeholder="Ej: Revisión del plan de noviembre"></div>
+      <div class="field"><label class="flabel">Convocados</label><input type="text" id="ag-convocados" placeholder="Ej: Eve, Ger, el equipo comercial"></div>
+      <div class="field"><label class="flabel">Link para entrar</label><input type="url" id="ag-link" placeholder="https://meet.google.com/…"></div>
+      <button class="btn-primary" type="button" id="ag-submit">Agendar</button>
+    </div>
+  `;
+  root.appendChild(agenda);
+
+  const pintarMes = ()=>{
+    const [a, m] = state.mesAgenda.split("-").map(Number);
+    const titulo = new Date(a, m - 1, 1).toLocaleDateString("es-AR", {month:"long", year:"numeric"});
+    agenda.querySelector("#cal-mes").textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
+    const grid = agenda.querySelector("#cal-grid");
+    grid.innerHTML = "";
+    renderCalendario(grid, state.mesAgenda);
+  };
+  const moverMes = (paso)=>{
+    const [a, m] = state.mesAgenda.split("-").map(Number);
+    const d = new Date(a, m - 1 + paso, 1);
+    state.mesAgenda = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    pintarMes();
+  };
+  agenda.querySelector("#cal-prev").onclick = ()=> moverMes(-1);
+  agenda.querySelector("#cal-next").onclick = ()=> moverMes(1);
+  agenda.querySelector("#cal-hoy").onclick = ()=>{
+    state.mesAgenda = new Date().toISOString().slice(0,7);
+    pintarMes();
+  };
+  pintarMes();
+
+  const lista = agenda.querySelector("#ag-lista");
+  const proximas = agendaProximas();
+  if(!proximas.length){
+    lista.innerHTML = `<div class="ag-vacio">No hay reuniones agendadas. Cargá la próxima acá abajo.</div>`;
+  } else {
+    proximas.forEach(r=>{
+      const item = document.createElement("div");
+      item.className = "ag-item";
+      item.id = "ag-" + r.id;
+      const hora = fmtHora_(r.hora);
+      item.innerHTML = `
+        <button class="row-delete" type="button" aria-label="Borrar reunión agendada">&times;</button>
+        <div class="cuando">${escHtml(fmtDiaLargo_(r.fecha))}${hora ? " · " + escHtml(hora) + " hs" : ""}</div>
+        <h5 class="cond"></h5>
+        <div class="quienes"></div>
+        <div class="acciones"></div>`;
+      item.querySelector("h5").textContent = r.tema || "Reunión";
+      item.querySelector(".quienes").textContent = r.convocados ? "Convocados: " + r.convocados : "Sin convocados anotados";
+      const acciones = item.querySelector(".acciones");
+      if(r.link){
+        const a = document.createElement("a");
+        a.className = "btn-secondary btn-sm btn-link";
+        a.href = toHref(r.link);
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = "Entrar a la reunión ↗";
+        acciones.appendChild(a);
+      } else {
+        const sin = document.createElement("span");
+        sin.className = "obj-estado";
+        sin.textContent = "Sin link de ingreso";
+        acciones.appendChild(sin);
+      }
+      item.querySelector(".row-delete").onclick = ()=>{
+        if(confirm("¿Borrar «" + (r.tema || "esta reunión") + "» de la agenda?")) deleteAgenda(r.id);
+      };
+      lista.appendChild(item);
+    });
+  }
+
+  agenda.querySelector("#ag-submit").onclick = ()=>{
+    const fecha = agenda.querySelector("#ag-fecha").value;
+    const tema = agenda.querySelector("#ag-tema").value.trim();
+    if(flagMissing(agenda, [[agenda.querySelector("#ag-fecha"),"la fecha"],
+      [agenda.querySelector("#ag-tema"),"el tema"]], agenda.querySelector("#ag-submit"))) return;
+    addAgenda({
+      fecha: fecha,
+      hora: agenda.querySelector("#ag-hora").value || "",
+      tema: tema,
+      convocados: agenda.querySelector("#ag-convocados").value.trim(),
+      link: agenda.querySelector("#ag-link").value.trim()
+    });
+  };
+
+  /* ===== Reuniones realizadas ===== */
+  const sepRealizadas = document.createElement("div");
+  sepRealizadas.className = "bloque-sep";
+  root.appendChild(sepRealizadas);
+  const cabRealizadas = document.createElement("div");
+  cabRealizadas.className = "view-head";
+  cabRealizadas.style.marginBottom = "14px";
+  cabRealizadas.innerHTML = `<div>
+      <h2 class="cond" style="font-size:24px">Reuniones realizadas</h2>
+      <p class="sub">El registro de cada encuentro, con su resumen y el link de la grabación.</p>
+    </div>`;
+  root.appendChild(cabRealizadas);
 
   const today = new Date().toISOString().slice(0,10);
   const compose = document.createElement("div");
   compose.className = "meeting-compose";
   compose.innerHTML = `
-    <label class="micro" style="display:block;margin-bottom:10px">Registrar un encuentro</label>
+    <label class="micro" style="display:block;margin-bottom:10px">Registrar un encuentro ya hecho</label>
     <div class="field"><label class="flabel">Título</label><input type="text" id="mt-tarea" value="Encuentro I Estado del proceso de trabajo"></div>
     <div class="field-row">
       <div class="field"><label class="flabel">Fecha</label><input type="date" id="mt-fecha" value="${today}"></div>
