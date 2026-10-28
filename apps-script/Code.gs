@@ -113,6 +113,7 @@ function handleAction_(action, p) {
     case "addAgenda": return addRow_(SHEET_AGENDA, SHEET_SCHEMAS[SHEET_AGENDA], p);
     case "updateAgenda": return updateRow_(SHEET_AGENDA, p.id, p.patch || {});
     case "deleteAgenda": return deleteRow_(SHEET_AGENDA, p.id);
+    case "syncCalendario": return sincronizarCalendario();
     case "quitarOpcion": return quitarOpcion_(p.campo, p.valor);
     case "setObjetivo": return setObjetivo_(p.texto);
     case "agregarPrioridad": return agregarPrioridad_(p.texto, p.desc);
@@ -169,7 +170,7 @@ function norm_(s) {
 function toIsoDate_(value) {
   if (value === "" || value === null || value === undefined) return null;
   if (Object.prototype.toString.call(value) === "[object Date]") {
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    return Utilities.formatDate(value, tzHoja_(), "yyyy-MM-dd");
   }
   var s = String(value).trim();
   if (!s) return null;
@@ -317,7 +318,7 @@ function readAgenda_() {
       var v = cell_(values[r], c);
       if (cols[c] === "fecha") v = toIsoDate_(v);
       else if (cols[c] === "hora" && v instanceof Date) {
-        v = Utilities.formatDate(v, Session.getScriptTimeZone(), "HH:mm");
+        v = Utilities.formatDate(v, tzHoja_(), "HH:mm");
       }
       obj[cols[c]] = (v === null || v === undefined) ? "" : String(v);
     }
@@ -1270,4 +1271,240 @@ function agregarPrioridad_(texto, desc) {
   L.sheet.getRange(filaNueva, 1).setValue(ultima.n + 1);
   L.sheet.getRange(filaNueva, 2).setValue(lineas.join("\n"));
   return { n: ultima.n + 1, texto: lineas[0], fila: filaNueva };
+}
+
+/* =====================================================================
+   CALENDARIO · lo que ya está agendado en Google Calendar
+   Una vez por hora, las reuniones de Noctis que están en el calendario
+   de trabajo entran solas en la pestaña de Agenda, con su link de Meet.
+   Es de una sola mano: manda el calendario. Lo que escribas en el tablero
+   y el calendario no tenga (un tema propio, por ejemplo) no se pisa.
+
+   PARA DEJARLO ANDANDO, UNA SOLA VEZ:
+   1. En el editor, "Servicios" (+) → "Google Calendar API" → Agregar.
+   2. Elegir "conectarCalendario" en el desplegable y Ejecutar. Pide
+      permiso para ver el calendario: aceptar.
+   Después corre solo, cada hora.
+   ===================================================================== */
+
+/* El calendario de donde salen las reuniones. */
+var CAL_ID = "hola@soyevelyna.com";
+/* Cuáles de ese calendario son de este tablero: se mira el título. */
+var CAL_FILTRO = /\bnoctis\b/i;
+/* Del título sobra el nombre del cliente: adentro del tablero ya se sabe
+   de quién es, así que "Noctis I Reunión de proceso" queda en
+   "Reunión de proceso". */
+var CAL_PREFIJO = /^\s*noctis\s*(?:[I|·\-–:]\s*)?/i;
+/* El tablero lo lee el equipo, que está en Argentina. El calendario está en
+   hora de Europa: la hora se guarda convertida, no como se ve allá. */
+var CAL_ZONA = "America/Argentina/Buenos_Aires";
+/* Hasta dónde mirar para adelante. */
+var CAL_DIAS = 120;
+/* Los invitados llegan como mails; en el tablero van por su nombre. Un mail
+   que no esté acá no se escribe: la reunión igual se carga, y el nombre se
+   puede sumar a mano desde el tablero (o acá, que es para siempre). */
+var CAL_NOMBRES = {
+  "hola@soyevelyna.com": "Eve",
+  "abrahanevelyn@gmail.com": "Eve",
+  "marketingdigital.push@gmail.com": "Fer",
+  "manataliapereira.np@gmail.com": "Nati",
+  "leandro.pachame@gmail.com": "Lea",
+  "ramirezaldana97@gmail.com": "Aldi",
+};
+
+/* Para correr a mano desde el editor. */
+function conectarCalendario() {
+  var viejos = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < viejos.length; i++) {
+    if (viejos[i].getHandlerFunction() === "sincronizarCalendario") {
+      ScriptApp.deleteTrigger(viejos[i]);
+    }
+  }
+  ScriptApp.newTrigger("sincronizarCalendario").timeBased().everyHours(1).create();
+  var r = sincronizarCalendario();
+  Logger.log("Listo, se sincroniza cada hora. Ahora: " + JSON.stringify(r));
+  return r;
+}
+function sincronizarCalendarioAhora() {
+  Logger.log(JSON.stringify(sincronizarCalendario()));
+}
+
+function sincronizarCalendario() {
+  ensureSheets_();
+  var desde = new Date();
+  desde.setHours(0, 0, 0, 0);
+  var hasta = new Date(desde.getTime() + CAL_DIAS * 24 * 3600 * 1000);
+
+  var items = eventosDelCalendario_(desde, hasta);
+
+  var sheet = ss_().getSheetByName(SHEET_AGENDA);
+  var cols = SHEET_SCHEMAS[SHEET_AGENDA];
+  var iId = cols.indexOf("id"), iFecha = cols.indexOf("fecha"), iHora = cols.indexOf("hora");
+  var iTema = cols.indexOf("tema"), iConv = cols.indexOf("convocados"), iLink = cols.indexOf("link");
+  var iPor = cols.indexOf("creadoPor"), iAlta = cols.indexOf("createdAt");
+  var filas = sheet.getDataRange().getValues();
+
+  /* Dos maneras de encontrar una reunión que ya está: por su id del
+     calendario, y por fecha+hora, que es cómo se reconocen las que
+     cargaste a mano antes de que esto existiera. */
+  var porId = {}, porCuando = {};
+  for (var r = 1; r < filas.length; r++) {
+    var id = String(filas[r][iId] || "").trim();
+    if (!id) continue;
+    porId[id] = r;
+    var clave = calFecha_(filas[r][iFecha]) + " " + calHora_(filas[r][iHora]);
+    if (!porCuando[clave]) porCuando[clave] = r;
+  }
+
+  var vistos = {}, nuevas = [], res = { creadas: 0, actualizadas: 0, adoptadas: 0, borradas: 0 };
+
+  for (var k = 0; k < items.length; k++) {
+    var ev = items[k];
+    var id = "cal_" + ev.id;
+    vistos[id] = true;
+    var fecha = ev.fecha, hora = ev.hora;
+    var fila = porId[id];
+    var adoptada = false;
+    if (fila === undefined) {
+      fila = porCuando[fecha + " " + hora];
+      /* Sólo se adopta una fila que nadie del calendario reclamó todavía. */
+      if (fila !== undefined && String(filas[fila][iId] || "").indexOf("cal_") === 0) {
+        fila = undefined;
+      }
+      adoptada = fila !== undefined;
+    }
+
+    if (fila === undefined) {
+      var alta = [];
+      for (var c = 0; c < cols.length; c++) alta.push("");
+      alta[iId] = id;
+      alta[iFecha] = fecha;
+      alta[iHora] = hora;
+      alta[iTema] = ev.tema;
+      alta[iConv] = ev.convocados;
+      alta[iLink] = ev.link;
+      alta[iPor] = "Google Calendar";
+      alta[iAlta] = nowIso_();
+      nuevas.push(alta);
+      res.creadas++;
+      continue;
+    }
+
+    /* Del calendario manda cuándo es y por dónde se entra. El tema y los
+       convocados sólo se completan si están vacíos: lo que escribiste vos
+       vale más que el título del evento. */
+    var cambio = false;
+    cambio = escribirSi_(sheet, fila, iId, filas[fila][iId], id) || cambio;
+    cambio = escribirSi_(sheet, fila, iFecha, calFecha_(filas[fila][iFecha]), fecha) || cambio;
+    cambio = escribirSi_(sheet, fila, iHora, calHora_(filas[fila][iHora]), hora) || cambio;
+    if (ev.link) cambio = escribirSi_(sheet, fila, iLink, filas[fila][iLink], ev.link) || cambio;
+    if (!String(filas[fila][iTema] || "").trim() && ev.tema) {
+      cambio = escribirSi_(sheet, fila, iTema, filas[fila][iTema], ev.tema) || cambio;
+    }
+    if (!String(filas[fila][iConv] || "").trim() && ev.convocados) {
+      cambio = escribirSi_(sheet, fila, iConv, filas[fila][iConv], ev.convocados) || cambio;
+    }
+    escribirSi_(sheet, fila, iPor, filas[fila][iPor], "Google Calendar");
+    if (adoptada) res.adoptadas++;
+    else if (cambio) res.actualizadas++;
+  }
+
+  if (nuevas.length) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, nuevas.length, cols.length).setValues(nuevas);
+  }
+
+  /* Una reunión que el calendario ya no tiene y que había traído el
+     calendario, se va. Las cargadas a mano no se tocan nunca. */
+  var hastaIso = Utilities.formatDate(hasta, CAL_ZONA, "yyyy-MM-dd");
+  var desdeIso = Utilities.formatDate(desde, CAL_ZONA, "yyyy-MM-dd");
+  for (var r2 = filas.length - 1; r2 >= 1; r2--) {
+    var idv = String(filas[r2][iId] || "").trim();
+    if (idv.indexOf("cal_") !== 0 || vistos[idv]) continue;
+    var f = calFecha_(filas[r2][iFecha]);
+    if (f >= desdeIso && f <= hastaIso) { sheet.deleteRow(r2 + 1); res.borradas++; }
+  }
+  return res;
+}
+
+/* Se usa el servicio avanzado de Calendar (no CalendarApp) porque es el
+   único que trae el link de Meet y los invitados. */
+function eventosDelCalendario_(desde, hasta) {
+  if (typeof Calendar === "undefined" || !Calendar.Events) {
+    throw new Error("Falta activar el servicio 'Google Calendar API' en el editor (Servicios +).");
+  }
+  var resp = Calendar.Events.list(CAL_ID, {
+    timeMin: desde.toISOString(),
+    timeMax: hasta.toISOString(),
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: 250,
+    showDeleted: false
+  });
+  var items = resp.items || [], out = [];
+  for (var i = 0; i < items.length; i++) {
+    var ev = items[i];
+    if (ev.status === "cancelled") continue;
+    var titulo = String(ev.summary || "");
+    if (!CAL_FILTRO.test(titulo)) continue;
+    var link = calLink_(ev);
+    var invitados = ev.attendees || [];
+    /* Un recordatorio suelto ("Factura | Noctis") no es una reunión: para
+       entrar tiene que tener link o gente invitada. */
+    if (!link && !invitados.length) continue;
+    var ini = ev.start && ev.start.dateTime
+      ? new Date(ev.start.dateTime)
+      : (ev.start && ev.start.date ? new Date(ev.start.date + "T12:00:00Z") : null);
+    if (!ini) continue;
+    out.push({
+      id: ev.id,
+      fecha: Utilities.formatDate(ini, CAL_ZONA, "yyyy-MM-dd"),
+      hora: (ev.start && ev.start.dateTime) ? Utilities.formatDate(ini, CAL_ZONA, "HH:mm") : "",
+      tema: titulo.replace(CAL_PREFIJO, "").trim() || titulo.trim(),
+      convocados: calConvocados_(invitados),
+      link: link
+    });
+  }
+  return out;
+}
+
+function calLink_(ev) {
+  if (ev.hangoutLink) return ev.hangoutLink;
+  var eps = (ev.conferenceData && ev.conferenceData.entryPoints) || [];
+  for (var i = 0; i < eps.length; i++) {
+    if (eps[i].entryPointType === "video" && eps[i].uri) return eps[i].uri;
+  }
+  if (ev.location && /^https?:\/\//i.test(String(ev.location))) return String(ev.location).trim();
+  return "";
+}
+
+function calConvocados_(invitados) {
+  var out = [];
+  for (var i = 0; i < invitados.length; i++) {
+    var mail = String(invitados[i].email || "").toLowerCase().trim();
+    var nombre = CAL_NOMBRES[mail];
+    if (nombre && out.indexOf(nombre) === -1) out.push(nombre);
+  }
+  return out.join(", ");
+}
+
+/* La zona horaria del Sheet, no la del proyecto. Una hora guardada como
+   hora (no como texto) la arma Sheets en SU zona; leerla en otra la corre.
+   Eso hacía que Weber mostrara 18:16 donde la hoja dice 13:00. */
+function tzHoja_() { return ss_().getSpreadsheetTimeZone(); }
+
+function calFecha_(v) { return toIsoDate_(v) || ""; }
+
+function calHora_(v) {
+  if (Object.prototype.toString.call(v) === "[object Date]") {
+    return Utilities.formatDate(v, tzHoja_(), "HH:mm");
+  }
+  return String(v === null || v === undefined ? "" : v).trim();
+}
+
+/* Escribe sólo si cambia: así el Sheet no registra ediciones de más. */
+function escribirSi_(sheet, fila, col, actual, valor) {
+  var a = Object.prototype.toString.call(actual) === "[object Date]" ? actual : String(actual === null || actual === undefined ? "" : actual).trim();
+  if (a === valor) return false;
+  sheet.getRange(fila + 1, col + 1).setValue(valor);
+  return true;
 }
