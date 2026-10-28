@@ -460,13 +460,31 @@ function etapa1Table_() {
   return { sheet: sheet, values: values, header: header, last: last };
 }
 
+/* El link de la grabación de Fathom no está en el texto de la celda sino
+   pegado a ella, así que getValues() devuelve "Ver grabación en Fathom" y
+   pierde la dirección. Para traerla hay que pedir el texto enriquecido. */
+function enlaceDeCelda_(filaRica, col) {
+  var celda = filaRica && filaRica[col];
+  if (!celda) return "";
+  var url = celda.getLinkUrl();
+  if (url) return url;
+  var runs = celda.getRuns();
+  for (var i = 0; i < runs.length; i++) {
+    var u = runs[i].getLinkUrl();
+    if (u) return u;
+  }
+  return "";
+}
+
 function readEtapa1_(T) {
   T = T || etapa1Table_();
+  var ricos = T.sheet.getDataRange().getRichTextValues();
   var out = [];
   for (var r = T.header + 1; r <= T.last; r++) {
     var row = T.values[r];
     out.push({ fecha: toIsoDate_(row[0]), hs: cell_(row, 1), tarea: cell_(row, 2), responsable: cell_(row, 3),
-      estado: cell_(row, 4), resultado: cell_(row, 5), obs: cell_(row, 6) });
+      estado: cell_(row, 4), resultado: cell_(row, 5), obs: cell_(row, 6),
+      grabacion: enlaceDeCelda_(ricos[r], 6) || enlaceDeCelda_(ricos[r], 5) });
   }
   return out;
 }
