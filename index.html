@@ -584,7 +584,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261030-1416";
+  window.APP_VERSION = "20261030-1424";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -2833,7 +2833,7 @@ function renderReuniones(root){
   const combined = [];
   const live = sheetMode();
   const hsLabel = hs => hs ? (/hs/i.test(String(hs)) ? hs : hs+" hs") : null;
-  RAW.etapa1.forEach(e=> combined.push({fecha:e.fecha, responsable:e.responsable, duracion:hsLabel(e.hs), resumen:e.tarea+(e.resultado?" — "+e.resultado:""), grabacion:e.grabacion||"", historical:!live, src:e}));
+  RAW.etapa1.forEach(e=> combined.push({fecha:e.fecha, responsable:e.responsable, duracion:hsLabel(e.hs), resumen:e.tarea+(e.resultado?" — "+sinElLink_(e.resultado, e.grabacion):""), grabacion:e.grabacion||"", historical:!live, src:e}));
   meetingsState.forEach(m=> combined.push(Object.assign({historical:false}, m)));
   combined.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||"") || (b.createdAt||"").localeCompare(a.createdAt||""));
 
@@ -3423,6 +3423,14 @@ document.addEventListener("keydown", (e)=>{
 /* =====================================================================
    EXPORTAR A EXCEL (backup .xlsx con el estado actual)
    ===================================================================== */
+/* Si el link quedó escrito dentro del texto, no hace falta mostrarlo: ya está
+   el botón de la grabación. */
+function sinElLink_(texto, link){
+  let t = String(texto || "");
+  if(link) t = t.split(link).join("");
+  return t.replace(/\s*[—·|-]\s*$/, "").trim();
+}
+
 function buildExportRows(){
   const planRows = trackedTasks().map(t=>{
     const estado = currentEstado(t);
