@@ -584,7 +584,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261028-1759";
+  window.APP_VERSION = "20261030-1416";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -3442,7 +3442,19 @@ function buildExportRows(){
     };
   });
   const etapa1Rows = RAW.etapa1.map(e=>({
-    "Fecha": e.fecha, "Tarea": e.tarea, "Responsable": e.responsable, "Estado": e.estado, "Resultado": e.resultado || "",
+    "Fecha": e.fecha, "Horas": e.hs || "", "Tarea": e.tarea, "Responsable": e.responsable,
+    "Estado": e.estado, "Resultado": e.resultado || "", "Grabación": e.grabacion || "",
+  }));
+  /* Lo que viene: la agenda del calendario más lo cargado a mano. */
+  const agendaRows = (typeof agendaState !== "undefined" ? agendaState : []).map(a=>({
+    "Fecha": a.fecha || "", "Hora": a.hora || "", "Tema": a.tema || "",
+    "Convocados": a.convocados || "", "Link": a.link || "", "Origen": a.creadoPor || "Cargada a mano",
+  }));
+  /* logsTodos() junta lo que vino de la hoja con lo editado en esta visita;
+     logsLocales solo tiene lo segundo. */
+  const logRows = (typeof logsTodos === "function" ? logsTodos() : []).map(l=>({
+    "Fecha": l.ts ? new Date(l.ts).toLocaleString("es-AR") : "", "Autor": l.autor || "",
+    "Acción": l.accion || "", "Tarea": l.tarea || "", "Detalle": l.detalle || "",
   }));
   const reunionRows = (meetingsState.length ? meetingsState : [{}]).map(m=>({
     "Fecha": m.fecha || "", "Duración": m.duracion || "", "Responsable": m.responsable || "", "Resumen": m.resumen || "",
@@ -3450,7 +3462,7 @@ function buildExportRows(){
   const noteRows = (notesState.length ? notesState : [{}]).map(n=>({
     "Fecha": n.createdAt ? new Date(n.createdAt).toLocaleString("es-AR") : "", "Autor": n.author || "", "Nota": n.text || "",
   }));
-  return {planRows, etapa1Rows, reunionRows, noteRows};
+  return {planRows, etapa1Rows, reunionRows, agendaRows, logRows};
 }
 
 async function exportToExcel(btn){
@@ -3458,18 +3470,34 @@ async function exportToExcel(btn){
   const original = btn.textContent;
   btn.textContent = "Generando…"; btn.disabled = true;
   try{
-    const {planRows, etapa1Rows, reunionRows, noteRows} = buildExportRows();
+    const {planRows, etapa1Rows, reunionRows, agendaRows, logRows} = buildExportRows();
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(planRows), "Plan de trabajo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(etapa1Rows), "Etapa 1 - Diagnostico");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(reunionRows), "Reuniones");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(noteRows), "Notas");
+    const hojas = [
+      ["Plan de trabajo", planRows],
+      ["Reuniones realizadas", etapa1Rows],
+      ["Agenda", agendaRows],
+      ["Logs", logRows],
+    ];
+    /* La pestaña vieja de reuniones casi siempre está vacía: sólo va si tiene algo. */
+    if(reunionRows.some(r=> Object.keys(r).some(k=> r[k]))) hojas.push(["Reuniones (anterior)", reunionRows]);
+    hojas.forEach(([nombre, filas])=>{
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas.length ? filas : [{}]), nombre);
+    });
     const wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     const blob = new Blob([wbout], {type:"application/octet-stream"});
     const filename = "Noctis - Plan de trabajo (backup " + new Date().toISOString().slice(0,10) + ").xlsx";
-    const downloads = (window.claude && typeof window.claude.use==="function") ? await window.claude.use("downloads") : null;
-    if(!downloads){ alert("La descarga no está disponible en esta vista."); return; }
-    await downloads.save({filename, data:blob});
+    /* Descarga del navegador. Antes esto pedía la API de descargas de los
+       artifacts de Claude, que en el sitio publicado no existe: el botón no
+       hacía nada más que avisar que no se podía. */
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 10000);
   }catch(e){
     if(!e || e.code!=="declined"){ console.error(e); alert("No se pudo generar el archivo. Probá de nuevo."); }
   }finally{
