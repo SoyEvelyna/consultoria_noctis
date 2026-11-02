@@ -266,6 +266,12 @@ a{color:inherit}
 .ag-col.-cal .cal-ev .t{display:none}
 .ag-col.-cal .cal-dia{min-width:0}
 .cal-pie{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.4}
+/* Selector de panel: Administración / Médicos. */
+.tablero-bar{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+.tablero-btn{border:2px solid var(--ink);background:var(--card);padding:9px 16px;cursor:pointer;
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}
+.tablero-btn[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.tablero-btn .n{font-weight:600;opacity:.7;margin-left:8px}
 /* Las que vienen solas del Google Calendar llevan su sello. */
 .cal-tag{display:inline-block;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border:1.5px solid var(--ink);padding:1px 5px;margin-left:8px;vertical-align:1px;color:var(--ink)}
 .prox .cal-tag{border-color:var(--paper);color:var(--paper);opacity:.7}
@@ -556,6 +562,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
     <span class="yo-chip">Soy <select id="quien-soy" title="Con este nombre se firman tus cambios en la pestaña Logs"></select></span>
   </div>
 
+  <div class="tablero-bar" id="tablero-bar"></div>
   <nav class="tabs" id="tabs" role="tablist"></nav>
   <main id="view" role="tabpanel"></main>
 </div>
@@ -584,7 +591,7 @@ a.deliv-link:hover,a.entregable-link:hover{color:var(--hazard);text-decoration-c
   /* Sello de la versión publicada. GitHub Pages cachea el HTML y el navegador
      se queda con una copia vieja: la página compara este sello contra el del
      servidor y, si quedó atrás, se recarga sola una vez. */
-  window.APP_VERSION = "20261030-1424";
+  window.APP_VERSION = "20261102-1546";
   window.WEBER_GAS_CONFIG = {
     url: "https://script.google.com/macros/s/AKfycbzBPOk_YvE_ga4plsxaTIxlp78T9vM2JOB5vTlcGVJNcEEAxzhBd_j49p8s0KkVDcVy/exec",
     token: "nX7qK2vR9tLm4PzW8sYc3HdF6jBa1GeU"
@@ -602,6 +609,61 @@ let RAW = {"etapa1": [{"fecha": "2026-09-01", "hs": 1, "tarea": "Reunión inicia
    ===================================================================== */
 let OBJETIVO = "Poner en marcha el nuevo modelo de Noctis para reducir progresivamente la dependencia de IOMA, aumentando la participación de pacientes particulares y coberturas sostenibles, con un sistema que permita captar, convertir, hacer seguimiento y medir resultados mes a mes.";
 let PRIORIDADES = [{"n": 1, "tt": "Tener control del nuevo mix de pacientes y de los números que sostienen el modelo", "desc": "Saber mes a mes quién llega, por qué cobertura, qué estudio realiza, cuánto convierte y qué impacto genera en el negocio."}, {"n": 2, "tt": "Aumentar la conversión de consultas no-IOMA en pacientes y estudios", "desc": "Lograr que las oportunidades recibidas tengan seguimiento y aumentar progresivamente la proporción que termina en turno y/o estudio."}, {"n": 3, "tt": "Fidelizar la base actual y fortalecer el recorrido del paciente", "desc": "Dar continuidad a los pacientes cuando corresponda: informe, próximos pasos, controles, tratamiento, recomendación y experiencia."}];
+/* =====================================================================
+   PANELES · Administración y Médicos, cada uno con su hoja de proceso
+   El contenido de arriba (RAW.iniciativas, OBJETIVO, PRIORIDADES) es
+   siempre el del panel activo: cambiar de panel lo vuelve a volcar y
+   rearma las tareas. Las reuniones y las métricas son del cliente, no
+   del panel, así que no se tocan.
+   ===================================================================== */
+let TABLEROS_DATA = [
+  {id:"admin", label:"Administración", objetivo:OBJETIVO, prioridades:PRIORIDADES, iniciativas:RAW.iniciativas, finalizados:[]},
+  {id:"medicos", label:"Médicos", objetivo:"", prioridades:[], iniciativas:[], finalizados:[]}
+];
+let tableroActivo = (function(){
+  try{ return localStorage.getItem(localKey("tablero")) || "admin"; }catch(e){ return "admin"; }
+})();
+function tableroData(){
+  return TABLEROS_DATA.find(t=>t.id===tableroActivo) || TABLEROS_DATA[0];
+}
+/* El primero no lleva prefijo en los ids: si se lo pusiéramos, se
+   invalidarían los overrides ya guardados (urgencia, links, ocultas). */
+function fuenteIds_(source){
+  if(source !== "iniciativa") return source;
+  return tableroActivo === TABLEROS_DATA[0].id ? source : tableroActivo + "|" + source;
+}
+function setTablero(id){
+  if(!TABLEROS_DATA.some(t=>t.id===id)) return;
+  tableroActivo = id;
+  try{ localStorage.setItem(localKey("tablero"), id); }catch(e){}
+  aplicarTablero_();
+  render();
+}
+function aplicarTablero_(){
+  const d = tableroData();
+  RAW.iniciativas = d.iniciativas || [];
+  RAW.finalizados = d.finalizados || [];
+  OBJETIVO = d.objetivo || "";
+  PRIORIDADES = d.prioridades || [];
+  rebuildTasks_();
+}
+function renderTableroBar(){
+  const bar = document.getElementById("tablero-bar");
+  if(!bar) return;
+  bar.innerHTML = "";
+  /* Con un solo panel la barra sobra. */
+  if(TABLEROS_DATA.length < 2) return;
+  TABLEROS_DATA.forEach(t=>{
+    const b = document.createElement("button");
+    b.className = "tablero-btn";
+    b.type = "button";
+    b.setAttribute("aria-pressed", t.id===tableroActivo ? "true" : "false");
+    b.innerHTML = escHtml(t.label) + '<span class="n">' + (t.iniciativas||[]).length + '</span>';
+    b.onclick = ()=> setTablero(t.id);
+    bar.appendChild(b);
+  });
+}
+
 /* Grupos del tablero = prioridades de la hoja 02 (columna PRIORIDAD). */
 const FASE_IDS = [1,2,3,4];
 let FASE_META = {};
@@ -753,7 +815,7 @@ function wireRespSelect(sel){
     const enHoja = (SHEET_OPCIONES.responsable || []).some(v=>v.toLowerCase()===nombre.toLowerCase());
     if(!enHoja){
       SHEET_OPCIONES.responsable = (SHEET_OPCIONES.responsable || []).concat([nombre]);
-      if(sheetMode()) sheetWrite("addOpcion", {campo:"responsable", valor:nombre});
+      if(sheetMode()) sheetWrite("addOpcion", {tablero: tableroActivo, campo:"responsable", valor:nombre});
     }
     if(![...sel.options].some(o=>o.value===nombre)){
       const opt = document.createElement("option");
@@ -825,7 +887,7 @@ function hashId(str){
   return "t"+h.toString(36);
 }
 function mk(base, source, fase){
-  const key = [source, base.area||"", base.tema||"", base.tarea||""].join("|");
+  const key = [fuenteIds_(source), base.area||"", base.tema||"", base.tarea||""].join("|");
   idSeen[key] = (idSeen[key]||0) + 1;
   const id = hashId(key + "#" + idSeen[key]);
   const estadoOriginal = base.estado || null;
@@ -838,7 +900,7 @@ let TASKS = [];
    el id cambia cuando la tarea pasa a Finalizadas. */
 const RECIENTES_MS = 3 * 60 * 1000;
 const recientes = new Map();
-function claveTarea_(t){ return String(t.tema||"") + "|" + String(t.tarea||""); }
+function claveTarea_(t){ return tableroActivo + "|" + String(t.tema||"") + "|" + String(t.tarea||""); }
 function recordarCambio_(t, fields){
   const previo = recientes.get(claveTarea_(t));
   recientes.set(claveTarea_(t), {fields: Object.assign({}, previo && previo.fields, fields), ts: Date.now()});
@@ -1142,14 +1204,14 @@ function sheetTaskEdit(t, fields){
   // El link se guarda en OBSERVACIONES de la hoja 02; el override queda sin link.
   if(fields.link!==undefined) overridesState[t.id] = Object.assign({}, overridesState[t.id], {link: null});
   render();
-  return sheetWrite("updateTask", {id: t.id, fields});
+  return sheetWrite("updateTask", {tablero: tableroActivo, id: t.id, fields});
 }
 
 function sheetDeleteTask(t){
   registrarLog_("Borró la tarea", t.tarea, "");
   overridesState[t.id] = Object.assign({}, overridesState[t.id], {hidden:true});
   render();
-  return sheetWrite("deleteTask", {id: t.id});
+  return sheetWrite("deleteTask", {tablero: tableroActivo, id: t.id});
 }
 
 /* Mientras se lee el Sheet al abrir, no se guarda nada: si no, el cambio
@@ -1203,7 +1265,7 @@ async function addCustomTask(data){
   if(sheetMode()){
     customTasksState.unshift(Object.assign({}, data, {id:"tmp"+Date.now()}));
     render();
-    return sheetWrite("addTask", {fields: data});
+    return sheetWrite("addTask", {tablero: tableroActivo, fields: data});
   }
   const local = Object.assign({id:"c"+Date.now()}, data, {createdAt:new Date().toISOString()});
   customTasksState.unshift(local);
@@ -1463,15 +1525,21 @@ async function gasWriteUna_(action, payload){
 function gasApplySeed_(seed){
   if(!seed) return;
   RAW.etapa1 = seed.etapa1 || [];
-  RAW.iniciativas = seed.iniciativas || [];
-  RAW.finalizados = seed.finalizados || [];
   RAW.backlog = seed.backlog || [];
-  if(seed.objetivo) OBJETIVO = seed.objetivo;
-  if(seed.prioridades && seed.prioridades.length) PRIORIDADES = seed.prioridades;
   if(seed.metricas) RAW.metricas = seed.metricas;
   if(seed.opciones) SHEET_OPCIONES = seed.opciones;
+  if(seed.tableros && seed.tableros.length){
+    TABLEROS_DATA = seed.tableros;
+    if(!TABLEROS_DATA.some(t=>t.id===tableroActivo)) tableroActivo = TABLEROS_DATA[0].id;
+  } else {
+    /* Backend viejo, sin paneles: lo que venga es el primero. */
+    TABLEROS_DATA = [{id:"admin", label:"Administración", objetivo:seed.objetivo||OBJETIVO,
+      prioridades:(seed.prioridades&&seed.prioridades.length)?seed.prioridades:PRIORIDADES,
+      iniciativas:seed.iniciativas||[], finalizados:seed.finalizados||[]}];
+    tableroActivo = "admin";
+  }
   buildFaseMeta_();
-  rebuildTasks_();
+  aplicarTablero_();
 }
 
 function gasOverridesDoc_(){
@@ -1868,6 +1936,7 @@ function renderTabs(){
 }
 
 function render(){
+  renderTableroBar();
   renderTabs();
   const banda = document.getElementById("band-right");
   const vista = VIEWS.find(v=>v.id===state.view);
@@ -3030,7 +3099,7 @@ function guardarObjetivo(texto){
   registrarLog_("Cambió el objetivo", limpio.slice(0, 140), "");
   OBJETIVO = limpio;
   render();
-  if(sheetMode()) return sheetWrite("setObjetivo", {texto: limpio});
+  if(sheetMode()) return sheetWrite("setObjetivo", {tablero: tableroActivo, texto: limpio});
 }
 
 function guardarPrioridad(n, texto, desc){
@@ -3044,7 +3113,7 @@ function guardarPrioridad(n, texto, desc){
     String(p.tt || "").trim() && String(p.tt).trim() !== tt ? "Antes: " + p.tt : "");
   p.tt = tt; p.desc = d;
   render();
-  if(sheetMode()) return sheetWrite("setPrioridad", {n: Number(n), texto: tt, desc: d});
+  if(sheetMode()) return sheetWrite("setPrioridad", {tablero: tableroActivo, n: Number(n), texto: tt, desc: d});
 }
 
 /* Suma una prioridad al final del bloque. La fila nueva la inserta la hoja,
@@ -3057,7 +3126,7 @@ function nuevaPrioridad(){
     return;
   }
   registrarLog_("Agregó una prioridad", texto, "");
-  return sheetWrite("agregarPrioridad", {texto: texto, desc: ""});
+  return sheetWrite("agregarPrioridad", {tablero: tableroActivo, texto: texto, desc: ""});
 }
 
 function pintarPrioridadesEditables(cont){

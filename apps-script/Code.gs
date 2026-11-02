@@ -32,8 +32,41 @@ var SS_ = null;
 function ss_() { return SS_ || (SS_ = SpreadsheetApp.openById(SHEET_ID)); }
 
 var SHEET_ETAPA1 = "01 I Plan de trabajo";
-var SHEET_PROCESO = "02 I Proceso de trabajo";
 var SHEET_METRICAS = "03 I Definición métricas";
+
+/* Los paneles del tablero. Cada uno tiene su hoja de proceso, que se busca
+   por el número con el que empieza su nombre — exigiendo además que el nombre
+   diga "Proceso", porque "03 I Definición métricas" si no se colaría.
+
+   El primero va marcado con sinPrefijoEnIds: el id de cada tarea se calcula
+   con su texto, y si le antepusiéramos el panel a las de Administración se
+   invalidarían todos los overrides ya guardados (urgencia, link y tareas
+   ocultas se guardan por id). Los paneles nuevos sí llevan prefijo, para que
+   la misma tarea en dos paneles no comparta id. */
+var TABLEROS = [
+  { id: "admin", label: "Administración", prefijo: "02", sinPrefijoEnIds: true },
+  { id: "medicos", label: "Médicos", prefijo: "04" }
+];
+
+function tablero_(id) {
+  if (!id) return TABLEROS[0];
+  for (var i = 0; i < TABLEROS.length; i++) if (TABLEROS[i].id === id) return TABLEROS[i];
+  throw new Error("Panel desconocido: " + id);
+}
+
+function hojaProceso_(t) {
+  var hojas = ss_().getSheets();
+  for (var i = 0; i < hojas.length; i++) {
+    var nombre = String(hojas[i].getName() || "").trim();
+    if (nombre.indexOf(t.prefijo) === 0 && norm_(nombre).indexOf("PROCESO") !== -1) return hojas[i];
+  }
+  throw new Error("No encuentro la hoja de proceso del panel " + t.label +
+    " (tiene que empezar con " + t.prefijo + " y decir Proceso)");
+}
+
+function fuenteIds_(t) {
+  return t.sinPrefijoEnIds ? "iniciativa" : t.id + "|iniciativa";
+}
 var SHEET_OVERRIDES = "WebApp - Overrides";
 var SHEET_NOTES = "WebApp - Notas";
 var SHEET_LOGS = "WebApp - Logs";
@@ -107,21 +140,21 @@ function doPost(e) {
 
 function handleAction_(action, p) {
   switch (action) {
-    case "setPrioridad": return setPrioridad_(p.n, p.texto, p.desc);
+    case "setPrioridad": return setPrioridad_(p.tablero, p.n, p.texto, p.desc);
     case "setOverride": return setOverride_(p.taskId, p.patch || {});
     case "addLog": return addRow_(SHEET_LOGS, SHEET_SCHEMAS[SHEET_LOGS], p);
     case "addAgenda": return addRow_(SHEET_AGENDA, SHEET_SCHEMAS[SHEET_AGENDA], p);
     case "updateAgenda": return updateRow_(SHEET_AGENDA, p.id, p.patch || {});
     case "deleteAgenda": return deleteRow_(SHEET_AGENDA, p.id);
     case "quitarOpcion": return quitarOpcion_(p.campo, p.valor);
-    case "setObjetivo": return setObjetivo_(p.texto);
-    case "agregarPrioridad": return agregarPrioridad_(p.texto, p.desc);
+    case "setObjetivo": return setObjetivo_(p.tablero, p.texto);
+    case "agregarPrioridad": return agregarPrioridad_(p.tablero, p.texto, p.desc);
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
       Object.assign({ id: "n" + Date.now(), createdAt: nowIso_() }, p));
     case "deleteNote": return deleteRow_(SHEET_NOTES, p.id);
-    case "updateTask": return updateTask_(p.id, p.fields || {});
-    case "addTask": return addTask_(p.fields || {});
-    case "deleteTask": return deleteTask_(p.id);
+    case "updateTask": return updateTask_(p.tablero, p.id, p.fields || {});
+    case "addTask": return addTask_(p.tablero, p.fields || {});
+    case "deleteTask": return deleteTask_(p.tablero, p.id);
     case "addMeetingSheet": return addMeetingSheet_(p);
     case "deleteMeetingSheet": return deleteMeetingSheet_(p);
     case "migrarLinks": return migrarLinks_();
@@ -405,14 +438,29 @@ function migrateOverride_(oldId, newId, fields) {
    LECTURA
    ===================================================================== */
 
-/* La hoja 02 y la 01 se leen una sola vez y se reutilizan en todo el pedido. */
+/* La hoja de cada panel y la 01 se leen una sola vez por pedido. */
 function readSeed_() {
-  var L = procesoLayout_();
   var T = etapa1Table_();
-  var proceso = readProceso_(L);
+  var primero = null;
+  var tableros = TABLEROS.map(function (t) {
+    var L = procesoLayout_(t.id);
+    if (!primero) primero = L;
+    var datos = readProceso_(L);
+    datos.id = t.id;
+    datos.label = t.label;
+    datos.hoja = L.sheet.getName();
+    return datos;
+  });
+  /* Los campos de arriba son los del primer panel: así una web que todavía no
+     sabe de paneles sigue viendo lo mismo que antes. */
+  var proceso = {
+    objetivo: tableros[0].objetivo, prioridades: tableros[0].prioridades,
+    iniciativas: tableros[0].iniciativas, finalizados: [], backlog: [],
+    tableros: tableros
+  };
   proceso.etapa1 = readEtapa1_(T);
   proceso.metricas = readMetricas_();
-  proceso.opciones = readOpciones_(L, T);
+  proceso.opciones = readOpciones_(primero, T);
   return proceso;
 }
 
@@ -506,10 +554,11 @@ var COLS_02 = {
   inicio: "INICIO", tiempo: "TIEMPO", cierre: "CIERRE", estado: "ESTADO", obs: "OBSERVACIONES"
 };
 
-/* Ubica encabezado, columnas y tareas de 02 (mismo recorrido que usa la web para los ids). */
-function procesoLayout_() {
-  var sheet = ss_().getSheetByName(SHEET_PROCESO);
-  if (!sheet) throw new Error("No encuentro la hoja '" + SHEET_PROCESO + "'");
+/* Ubica encabezado, columnas y tareas de la hoja de proceso de un panel
+   (mismo recorrido que usa la web para los ids). Sin argumento, el primero. */
+function procesoLayout_(tbId) {
+  var t = tablero_(tbId);
+  var sheet = hojaProceso_(t);
   var values = sheet.getDataRange().getValues();
   var iniciativasRow = findLabelRow_(values, "INICIATIVAS");
   var header = -1;
@@ -518,7 +567,7 @@ function procesoLayout_() {
       if (norm_(values[r][c]).indexOf("TAREA") === 0) { header = r; break; }
     }
   }
-  if (header === -1) throw new Error("No encuentro el encabezado de tareas (TAREA) en '" + SHEET_PROCESO + "'");
+  if (header === -1) throw new Error("No encuentro el encabezado de tareas (TAREA) en '" + sheet.getName() + "'");
   var cols = {};
   values[header].forEach(function (v, i) {
     var h = norm_(v);
@@ -528,7 +577,7 @@ function procesoLayout_() {
     });
   });
   ["area", "tarea", "estado"].forEach(function (k) {
-    if (cols[k] === undefined) throw new Error("Falta la columna " + COLS_02[k] + " en '" + SHEET_PROCESO + "'");
+    if (cols[k] === undefined) throw new Error("Falta la columna " + COLS_02[k] + " en '" + sheet.getName() + "'");
   });
   var fin = findLabelRow_(values, "FINALIZADOS", header + 1);
   var end = fin === -1 ? values.length : fin;
@@ -538,22 +587,23 @@ function procesoLayout_() {
     var row = values[tr];
     var area = get(row, "area"), tarea = get(row, "tarea");
     if (!area && !tarea) continue;
-    var key = ["iniciativa", area || "", get(row, "tema") || "", tarea || ""].join("|");
+    var key = [fuenteIds_(t), area || "", get(row, "tema") || "", tarea || ""].join("|");
     seen[key] = (seen[key] || 0) + 1;
     tasks.push({ id: hashId_(key + "#" + seen[key]), row: tr + 1 });
     last = tr;
   }
-  return { sheet: sheet, values: values, cols: cols, header: header, tasks: tasks, lastTaskRow: last + 1, get: get };
+  return { tablero: t, sheet: sheet, values: values, cols: cols, header: header,
+    tasks: tasks, lastTaskRow: last + 1, get: get };
 }
 
 /* Reescribe una prioridad del trimestre en la hoja de proceso. El número va
    en la columna A y el texto en la B, donde la primera línea es el título y
    las siguientes la explicación. Si no se manda desc, la explicación que
    hubiera se conserva. */
-function setPrioridad_(n, texto, desc) {
+function setPrioridad_(tbId, n, texto, desc) {
   var num = Number(n);
   if (!(num >= 1 && num <= 9)) throw new Error("La prioridad tiene que ser un número del 1 al 9");
-  var L = procesoLayout_();
+  var L = procesoLayout_(tbId);
   var values = L.values;
   var prioridadesRow = findLabelRow_(values, "PRIORIDADES");
   var iniciativasRow = findLabelRow_(values, "INICIATIVAS");
@@ -693,8 +743,8 @@ function findTask_(L, id) {
   return null;
 }
 
-function idAtRow_(row) {
-  var L = procesoLayout_();
+function idAtRow_(tbId, row) {
+  var L = procesoLayout_(tbId);
   for (var i = 0; i < L.tasks.length; i++) if (L.tasks[i].row === row) return L.tasks[i].id;
   return null;
 }
@@ -734,19 +784,19 @@ function writeTaskCells_(L, row, fields) {
   return perdidos;
 }
 
-function updateTask_(id, fields) {
-  var L = procesoLayout_();
+function updateTask_(tbId, id, fields) {
+  var L = procesoLayout_(tbId);
   var t = findTask_(L, id);
-  if (!t) throw new Error("No encuentro esa tarea en '" + SHEET_PROCESO + "'. Puede haber cambiado en el Sheet: recargá la página.");
+  if (!t) throw new Error("No encuentro esa tarea en '" + L.sheet.getName() + "'. Puede haber cambiado en el Sheet: recargá la página.");
   var perdidos = writeTaskCells_(L, t.row, fields);
   SpreadsheetApp.flush();
-  var newId = idAtRow_(t.row);
+  var newId = idAtRow_(tbId, t.row);
   migrateOverride_(id, newId, fields);
   return { id: newId, enObservaciones: perdidos };
 }
 
-function addTask_(fields) {
-  var L = procesoLayout_();
+function addTask_(tbId, fields) {
+  var L = procesoLayout_(tbId);
   var after = L.lastTaskRow;
   var width = L.sheet.getMaxColumns();
   L.sheet.insertRowAfter(after);
@@ -756,17 +806,17 @@ function addTask_(fields) {
   template.copyTo(target, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
   template.copyTo(target, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
   target.clearContent();
-  var L2 = procesoLayout_();
+  var L2 = procesoLayout_(tbId);
   var perdidos = writeTaskCells_(L2, row, Object.assign({ estado: "Por hacer" }, fields));
   SpreadsheetApp.flush();
-  var newId = idAtRow_(row);
+  var newId = idAtRow_(tbId, row);
   return { id: newId, enObservaciones: perdidos };
 }
 
-function deleteTask_(id) {
-  var L = procesoLayout_();
+function deleteTask_(tbId, id) {
+  var L = procesoLayout_(tbId);
   var t = findTask_(L, id);
-  if (!t) throw new Error("No encuentro esa tarea en '" + SHEET_PROCESO + "'. Recargá la página.");
+  if (!t) throw new Error("No encuentro esa tarea en '" + L.sheet.getName() + "'. Recargá la página.");
   L.sheet.deleteRow(t.row);
   deleteRow_(SHEET_OVERRIDES, id);
   return { deleted: id };
@@ -859,8 +909,8 @@ function addOpcion_(p) {
   var valor = String(p.valor || "").trim();
   if (!valor) throw new Error("Falta el nombre");
   if (p.campo !== "responsable") throw new Error("Campo no soportado: " + p.campo);
-  var L = procesoLayout_();
-  if (L.cols.responsable === undefined) throw new Error("No encuentro la columna RESPONSABLE en '" + SHEET_PROCESO + "'");
+  var L = procesoLayout_(p.tablero);
+  if (L.cols.responsable === undefined) throw new Error("No encuentro la columna RESPONSABLE en '" + L.sheet.getName() + "'");
   var col = L.cols.responsable + 1;
   var firstRow = L.header + 2;
   var sample = L.sheet.getRange(L.tasks.length ? L.tasks[0].row : firstRow, col);
@@ -888,7 +938,7 @@ function estadoNuevo_(v) {
    columna debajo del encabezado) y pasa cada tarea a su estado nuevo. */
 function migrarEstados_() {
   var L = procesoLayout_();
-  if (L.cols.estado === undefined) throw new Error("No encuentro la columna ESTADO en '" + SHEET_PROCESO + "'");
+  if (L.cols.estado === undefined) throw new Error("No encuentro la columna ESTADO en '" + L.sheet.getName() + "'");
   var col = L.cols.estado + 1;
   var firstRow = L.header + 2;
   var sample = L.sheet.getRange(L.tasks.length ? L.tasks[0].row : firstRow, col);
@@ -1255,8 +1305,8 @@ function filaDelObjetivo_(L) {
   return objetivoRow + 1;
 }
 
-function setObjetivo_(texto) {
-  var L = procesoLayout_();
+function setObjetivo_(tbId, texto) {
+  var L = procesoLayout_(tbId);
   var fila = filaDelObjetivo_(L);
   L.sheet.getRange(fila + 1, 1).setValue(String(texto === null || texto === undefined ? "" : texto));
   return { objetivo: texto || "", fila: fila + 1 };
@@ -1278,8 +1328,8 @@ function filasPrioridades_(L) {
   return { inicio: inicio, fin: fin, filas: filas };
 }
 
-function agregarPrioridad_(texto, desc) {
-  var L = procesoLayout_();
+function agregarPrioridad_(tbId, texto, desc) {
+  var L = procesoLayout_(tbId);
   var B = filasPrioridades_(L);
   if (!B.filas.length) throw new Error("No encuentro ninguna prioridad para copiar el formato");
   var ultima = B.filas[0];
