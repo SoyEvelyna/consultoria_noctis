@@ -423,15 +423,29 @@ function setOverride_(taskId, patch) {
 }
 
 /* El id cambia si cambia el texto: el link guardado pasa al id nuevo. */
+/* La tarea cambio de texto y por lo tanto de id: la fila de overrides se
+   renombra, y se limpia solo lo que se acaba de escribir en la hoja, que es
+   lo unico que ya no tiene que estar aca pisandolo.
+
+   Antes se reescribia la fila entera con una lista fija de siete valores.
+   Cuando el esquema sumo "urgencia" esa lista quedo corta y el Sheet cortaba
+   con "los datos tienen 7, y el rango, 8": la tarea se guardaba igual, pero
+   el tablero avisaba que no. Y cuando no cortaba, borraba de paso la
+   urgencia marcada a mano y las tareas ocultas. */
 function migrateOverride_(oldId, newId, fields) {
   var sheet = ss_().getSheetByName(SHEET_OVERRIDES);
+  if (!sheet) return;
   var cols = SHEET_SCHEMAS[SHEET_OVERRIDES];
   var rowIdx = findRowIndexById_(sheet, oldId);
-  if (rowIdx !== -1) {
-    // El link ahora vive en OBSERVACIONES de 02: si se editó, se limpia del override.
-    var link = fields.link !== undefined ? "" : sheet.getRange(rowIdx, cols.indexOf("link") + 1).getValue();
-    sheet.getRange(rowIdx, 1, 1, cols.length).setValues([[newId, "", link, "", "", false, nowIso_()]]);
-  }
+  if (rowIdx === -1) return;
+  if (newId && newId !== oldId) sheet.getRange(rowIdx, 1).setValue(newId);
+  ["estado", "link", "inicio", "cierre"].forEach(function (k) {
+    if (!fields || fields[k] === undefined) return;
+    var ci = cols.indexOf(k);
+    if (ci !== -1) sheet.getRange(rowIdx, ci + 1).setValue("");
+  });
+  var cu = cols.indexOf("updated_at");
+  if (cu !== -1) sheet.getRange(rowIdx, cu + 1).setValue(nowIso_());
 }
 
 /* =====================================================================
