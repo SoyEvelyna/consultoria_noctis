@@ -146,7 +146,7 @@ function handleAction_(action, p) {
     case "addAgenda": return addRow_(SHEET_AGENDA, SHEET_SCHEMAS[SHEET_AGENDA], p);
     case "updateAgenda": return updateRow_(SHEET_AGENDA, p.id, p.patch || {});
     case "deleteAgenda": return deleteRow_(SHEET_AGENDA, p.id);
-    case "quitarOpcion": return quitarOpcion_(p.campo, p.valor);
+    case "quitarOpcion": return quitarOpcion_(p.tablero, p.campo, p.valor);
     case "setObjetivo": return setObjetivo_(p.tablero, p.texto);
     case "agregarPrioridad": return agregarPrioridad_(p.tablero, p.texto, p.desc);
     case "addNote": return addRow_(SHEET_NOTES, SHEET_SCHEMAS[SHEET_NOTES],
@@ -463,6 +463,9 @@ function readSeed_() {
     datos.id = t.id;
     datos.label = t.label;
     datos.hoja = L.sheet.getName();
+    /* Cada panel ofrece los nombres y las areas de SU hoja: si no, Medicos
+       heredaba la gente de Administracion. */
+    datos.opciones = readOpciones_(L, T);
     return datos;
   });
   /* Los campos de arriba son los del primer panel: así una web que todavía no
@@ -1224,7 +1227,7 @@ function permitirVariosResponsables() {
    sola celda escrita: la lista es lo que el desplegable sugiere, no el dato.
    Lo llama la web desde la ficha de la tarea.
    ===================================================================== */
-function quitarOpcion_(campo, valor) {
+function quitarOpcion_(tbId, campo, valor) {
   function limpio_(v) {
     return String(v === null || v === undefined ? "" : v).trim().toUpperCase()
       .replace(/[\u00C1\u00C0\u00C4\u00C2]/g, "A").replace(/[\u00C9\u00C8\u00CB\u00CA]/g, "E")
@@ -1237,9 +1240,21 @@ function quitarOpcion_(campo, valor) {
   var objetivo = limpio_(quitar);
   var hojas = [], enUso = 0;
 
-  ss_().getSheets().forEach(function (sheet) {
+  /* Cada panel tiene su propia lista de nombres: se saca solo del panel desde
+     el que se pidio, para que sacar a alguien de uno no lo saque del otro. Sin
+     panel (una web vieja), se mantiene el barrido de antes. */
+  var aMirar = [];
+  if (tbId) {
+    try { aMirar = [hojaProceso_(tablero_(tbId))]; } catch (e) { aMirar = []; }
+  }
+  if (!aMirar.length) {
+    aMirar = ss_().getSheets().filter(function (sheet) {
+      return String(sheet.getName() || "").indexOf("WebApp") !== 0;
+    });
+  }
+
+  aMirar.forEach(function (sheet) {
     var nombre = sheet.getName();
-    if (nombre.indexOf("WebApp") === 0) return;
     var values = sheet.getDataRange().getValues();
     var fila = -1, col = -1;
     for (var r = 0; r < values.length && fila === -1; r++) {
